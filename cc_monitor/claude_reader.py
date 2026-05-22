@@ -20,13 +20,33 @@ class ClaudeReader:
                 continue
             jsonl_files = list(d.glob("*.jsonl"))
             last_active = max((f.stat().st_mtime for f in jsonl_files), default=0)
+            # Read real path from first JSONL file's cwd field
+            real_path = self._resolve_path_from_jsonl(d, jsonl_files)
             projects.append({
-                "hash": d.name, "path": d.name,
+                "hash": d.name, "path": real_path or d.name,
                 "session_count": len(jsonl_files),
                 "last_active": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(last_active)) if last_active else None,
             })
         projects.sort(key=lambda p: p["last_active"] or "", reverse=True)
         return projects
+
+    def _resolve_path_from_jsonl(self, proj_dir, jsonl_files):
+        """Read the cwd field from the first JSONL file to get the real project path"""
+        for f in sorted(jsonl_files, key=lambda x: x.stat().st_mtime, reverse=True)[:3]:
+            try:
+                with open(f, "r", encoding="utf-8", errors="replace") as fh:
+                    for i, line in enumerate(fh):
+                        if i > 10:
+                            break
+                        try:
+                            obj = json.loads(line)
+                            if "cwd" in obj:
+                                return obj["cwd"]
+                        except json.JSONDecodeError:
+                            continue
+            except Exception:
+                continue
+        return None
 
     def list_sessions(self, project_hash):
         proj_dir = self.projects_dir / project_hash

@@ -255,6 +255,17 @@ class Panel(ctk.CTk):
         if self.server_running:
             return
         try:
+            # Check if port is already in use
+            import socket
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            result = sock.connect_ex(('127.0.0.1', get_port()))
+            sock.close()
+            if result == 0:
+                # Port in use, assume server is already running
+                self.server_running = True
+                self._refresh()
+                return
+
             flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
             self.server_process = subprocess.Popen(
                 [sys.executable, "-u", "server.py"],
@@ -266,7 +277,10 @@ class Panel(ctk.CTk):
             self._refresh()
             threading.Thread(target=self._monitor, daemon=True).start()
         except Exception as e:
-            self.status_label.configure(text=f"启动失败: {e}", text_color=RED)
+            try:
+                self.status_label.configure(text=f"启动失败: {e}", text_color=RED)
+            except Exception:
+                pass
 
     def _stop(self):
         if self.server_process:
@@ -291,12 +305,15 @@ class Panel(ctk.CTk):
         self.server_running = False
         self.server_process = None
         try:
-            self.after(0, self._refresh)
+            if self.winfo_exists():
+                self.after(0, self._refresh)
         except Exception:
             pass
 
     def _refresh(self):
         try:
+            if not self.winfo_exists():
+                return
             port = get_port()
             lan_ip = get_lan_ip()
             api_key = get_api_key()
