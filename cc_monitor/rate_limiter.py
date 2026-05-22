@@ -50,6 +50,6 @@ class RateLimiter:
     def record_rejection(self, client_ip: str):
         with self._lock:
             self._ban_counts[client_ip] = self._ban_counts.get(client_ip, 0) + 1
-            if self._ban_counts[client_ip] >= 3:
+            if self._ban_counts[client_ip] >= 10:
                 self._banned[client_ip] = time.time() + self.ban_minutes * 60
                 self._ban_counts.pop(client_ip, None)

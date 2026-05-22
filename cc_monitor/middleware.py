@@ -29,7 +29,10 @@ async def rate_limit_middleware(request: Request, call_next):
         return JSONResponse(status_code=403, content={"error": "你已被暂时移除"})
 
     limiter = app_state.rate_limiter
-    if limiter and path not in ("/api/ping", "/api/auth/login", "/api/auth/check"):
+    # Exempt read-only data paths and auth paths from rate limiting
+    exempt_paths = ("/api/ping", "/api/auth/", "/api/health", "/api/system",
+                    "/api/projects", "/api/active")
+    if limiter and not any(path.startswith(p) for p in exempt_paths):
         if limiter.is_banned(client_ip):
             return JSONResponse(status_code=403, content={"error": "你已被暂时封禁"})
         if not limiter.is_allowed(client_ip):
