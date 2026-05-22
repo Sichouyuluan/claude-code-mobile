@@ -514,20 +514,13 @@ a:hover { text-decoration: underline; }
           <span class="version">CC Remote v1.0</span>
           <button class="btn-icon" onclick="handleLogout()" title="退出" style="font-size:14px;">&#8594;</button>
         </div>
-        <div class="sidebar-footer-row">
-          <span class="footer-link" id="footer-url"></span>
-        </div>
-        <div class="sidebar-footer-row">
-          <button class="btn-footer" onclick="copyCurrentUrl()">复制链接</button>
-          <button class="btn-footer" onclick="copyStoredKey()">复制密钥</button>
-        </div>
       </div>
     </aside>
     <!-- Main Content -->
     <div class="main">
       <div class="topbar">
         <button class="hamburger" onclick="toggleSidebar()">&#9776;</button>
-        <div class="topbar-title" id="topbar-title">仪表盘</div>
+        <div class="topbar-title" id="topbar-title">工作区</div>
         <div class="topbar-actions">
           <button class="btn btn-sm btn-secondary" id="back-btn" style="display:none;" onclick="goBack()">&#8592; 返回</button>
           <button class="btn btn-sm btn-secondary" id="refresh-btn" onclick="refreshCurrent()">&#8635; 刷新</button>
@@ -737,13 +730,13 @@ function navigateTo(view, data) {
   document.getElementById('view-conversation').style.display = view === 'conversation' ? '' : 'none';
   document.getElementById('back-btn').style.display = view !== 'dashboard' ? '' : 'none';
   if (view === 'dashboard') {
-    document.getElementById('topbar-title').textContent = '仪表盘';
+    document.getElementById('topbar-title').textContent = '工作区';
     loadSystemInfo();
   } else if (view === 'sessions') {
-    document.getElementById('topbar-title').textContent = state.currentProject ? shortPath(state.currentProject.path) : '会话';
+    document.getElementById('topbar-title').textContent = '会话';
     loadSessions();
   } else if (view === 'conversation') {
-    document.getElementById('topbar-title').textContent = state.currentSession ? state.currentSession.session_id.slice(0, 12) + '...' : '对话';
+    document.getElementById('topbar-title').textContent = '对话';
     loadMessages();
   }
   closeSidebar();
@@ -863,12 +856,16 @@ function renderProjects() {
   container.innerHTML = state.projects.map(p => {
     const active = state.currentProject && state.currentProject.hash === p.hash;
     const dotClass = p.last_active && (Date.now() - new Date(p.last_active).getTime()) < 300000 ? 'dot-active' : 'dot-idle';
+    const displayName = displayPath(p.path) || decodeHash(p.hash);
+    const sessionCount = p.session_count || 0;
     return '<div class="sidebar-item' + (active ? ' active' : '') + '" onclick="selectProject(\'' + p.hash + '\')">' +
       '<span class="dot ' + dotClass + '"></span>' +
       '<div class="item-info">' +
-      '<div class="item-path">' + escHtml(shortPath(p.path)) + '</div>' +
-      '<div class="item-meta">' + (p.session_count || 0) + ' 个会话</div>' +
-      '</div></div>';
+      '<div class="item-path">' + escHtml(displayName) + '</div>' +
+      '<div class="item-meta">' + sessionCount + ' 个会话</div>' +
+      '</div>' +
+      (sessionCount > 0 ? '<span style="background:var(--accent);color:#fff;font-size:11px;padding:2px 7px;border-radius:10px;font-weight:600;">' + sessionCount + '</span>' : '') +
+      '</div>';
   }).join('');
 }
 function selectProject(hash) {
@@ -1106,10 +1103,19 @@ function escHtml(s) {
   el.textContent = s;
   return el.innerHTML;
 }
+function decodeHash(hash) {
+  // "E--AI-Project-claude-code-mobile" → "E:\AI Project\claude-code-mobile"
+  return hash.replace(/--/g, '\\').replace(/-/g, ' ');
+}
 function shortPath(p) {
   if (!p) return '';
   const parts = p.replace(/\\/g, '/').split('/');
   return parts.slice(-2).join('/');
+}
+function displayPath(p) {
+  // Use path if it looks like a real path, otherwise decode from hash
+  if (p && (p.includes('\\') || p.includes('/'))) return shortPath(p);
+  return p || '';
 }
 function timeAgo(date) {
   const secs = Math.floor((Date.now() - date.getTime()) / 1000);
