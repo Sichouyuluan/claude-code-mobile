@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+logs/
+.api_key
+node_modules/
+.env
