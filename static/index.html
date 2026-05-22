@@ -1,11 +1,10 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="zh-CN" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>CC Remote Dashboard</title>
+<title>CC 远程监控</title>
 <style>
-/* ===== Theme Variables ===== */
 :root {
   --transition: 0.2s ease;
 }
@@ -55,8 +54,6 @@ html[data-theme="light"] {
   --scrollbar-thumb: #9ca3af;
   --overlay: rgba(0,0,0,0.3);
 }
-
-/* ===== Reset & Base ===== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; overflow: hidden; }
 body {
@@ -74,8 +71,6 @@ code, pre, .mono {
 ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
-
-/* ===== Toast ===== */
 #toast-container {
   position: fixed; bottom: 24px; right: 24px; z-index: 10000;
   display: flex; flex-direction: column; gap: 8px;
@@ -92,8 +87,6 @@ a:hover { text-decoration: underline; }
 .toast.success { border-color: var(--success); color: var(--success); }
 @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
-
-/* ===== Login Page ===== */
 #login-page {
   display: flex; align-items: center; justify-content: center;
   height: 100vh; background: var(--bg);
@@ -112,6 +105,9 @@ a:hover { text-decoration: underline; }
 .login-card .logo-icon {
   font-size: 48px; margin-bottom: 16px; display: block;
 }
+.login-card .login-hint {
+  font-size: 12px; color: var(--text-muted); margin-top: 16px;
+}
 .input-group {
   position: relative; margin-bottom: 20px; text-align: left;
 }
@@ -126,6 +122,17 @@ a:hover { text-decoration: underline; }
   transition: border-color var(--transition);
 }
 .input-group input:focus { border-color: var(--accent); }
+.input-with-btn {
+  display: flex; gap: 8px; align-items: stretch;
+}
+.input-with-btn input { flex: 1; }
+.input-with-btn .btn-copy-key {
+  flex-shrink: 0; padding: 0 14px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--surface-hover);
+  color: var(--text-secondary); font-size: 13px; cursor: pointer;
+  white-space: nowrap; transition: all var(--transition);
+}
+.input-with-btn .btn-copy-key:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   padding: 12px 24px; border-radius: 8px; border: none;
@@ -151,12 +158,8 @@ a:hover { text-decoration: underline; }
   transition: all var(--transition);
 }
 .btn-icon:hover { background: var(--surface-hover); color: var(--text); }
-
-/* ===== App Layout ===== */
 #app { display: none; height: 100vh; overflow: hidden; }
 .app-layout { display: flex; height: 100%; }
-
-/* ===== Sidebar ===== */
 .sidebar {
   width: 260px; min-width: 260px; height: 100%;
   background: var(--sidebar-bg); border-right: 1px solid var(--border);
@@ -204,11 +207,23 @@ a:hover { text-decoration: underline; }
 .dot-idle { background: var(--text-muted); }
 .sidebar-footer {
   padding: 12px 16px; border-top: 1px solid var(--border);
-  display: flex; align-items: center; gap: 8px;
 }
+.sidebar-footer-row {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+}
+.sidebar-footer-row:last-child { margin-bottom: 0; }
 .sidebar-footer .version { font-size: 12px; color: var(--text-muted); flex: 1; }
-
-/* ===== Main Area ===== */
+.sidebar-footer .footer-link {
+  font-size: 11px; color: var(--text-muted);
+  word-break: break-all; line-height: 1.4;
+}
+.sidebar-footer .btn-footer {
+  padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border);
+  background: var(--surface-hover); color: var(--text-muted);
+  font-size: 11px; cursor: pointer; white-space: nowrap;
+  transition: all var(--transition);
+}
+.sidebar-footer .btn-footer:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
 .main {
   flex: 1; display: flex; flex-direction: column;
   height: 100%; overflow: hidden; min-width: 0;
@@ -229,8 +244,6 @@ a:hover { text-decoration: underline; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .topbar-actions { display: flex; gap: 8px; align-items: center; }
-
-/* ===== Dashboard ===== */
 .dashboard { padding: 20px; overflow-y: auto; flex: 1; }
 .stats-grid {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -270,8 +283,48 @@ a:hover { text-decoration: underline; }
 }
 .process-item .pid { font-family: 'SF Mono', monospace; color: var(--text-muted); min-width: 50px; }
 .process-item .cmd { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* ===== Conversation View ===== */
+.session-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px 20px;
+  cursor: pointer; transition: all var(--transition);
+  display: flex; align-items: center; gap: 14px;
+  margin-bottom: 10px;
+}
+.session-card:hover {
+  border-color: var(--accent); background: var(--surface-hover);
+  transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.session-card .session-status {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+}
+.session-card .session-body { flex: 1; min-width: 0; }
+.session-card .session-id {
+  font-size: 14px; font-weight: 600; margin-bottom: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.session-card .session-meta {
+  display: flex; align-items: center; gap: 12px;
+  font-size: 12px; color: var(--text-muted);
+}
+.session-card .session-meta .meta-item {
+  display: flex; align-items: center; gap: 4px;
+}
+.session-card .session-arrow {
+  font-size: 18px; color: var(--text-muted); flex-shrink: 0;
+  transition: transform 0.2s, color 0.2s;
+}
+.session-card:hover .session-arrow {
+  color: var(--accent); transform: translateX(3px);
+}
+.session-card .session-enter {
+  flex-shrink: 0; padding: 4px 12px; border-radius: 6px;
+  font-size: 12px; font-weight: 500; border: 1px solid var(--border);
+  background: transparent; color: var(--text-secondary); cursor: pointer;
+  transition: all var(--transition);
+}
+.session-card:hover .session-enter {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
 .conversation {
   flex: 1; display: flex; flex-direction: column; overflow: hidden;
 }
@@ -331,8 +384,6 @@ a:hover { text-decoration: underline; }
   font-size: 10px; padding: 1px 6px; border-radius: 4px;
   background: var(--accent); color: #fff; font-weight: 600;
 }
-
-/* ===== Message Input ===== */
 .message-input-area {
   padding: 12px 20px; border-top: 1px solid var(--border);
   background: var(--sidebar-bg);
@@ -357,8 +408,6 @@ a:hover { text-decoration: underline; }
 }
 .send-btn:hover { background: var(--accent-hover); }
 .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-/* ===== Empty / Loading States ===== */
 .empty-state {
   display: flex; flex-direction: column; align-items: center;
   justify-content: center; height: 100%; padding: 40px;
@@ -373,8 +422,6 @@ a:hover { text-decoration: underline; }
   animation: spin 0.8s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-
-/* ===== Collapsible ===== */
 .collapsible-header {
   cursor: pointer; display: flex; align-items: center; gap: 6px;
   font-size: 12px; color: var(--text-muted); padding: 4px 0;
@@ -389,14 +436,10 @@ a:hover { text-decoration: underline; }
   display: none; padding: 4px 0 4px 16px;
 }
 .collapsible-body.open { display: block; }
-
-/* ===== Mobile Sidebar Overlay ===== */
 .sidebar-overlay {
   display: none; position: fixed; inset: 0;
   background: var(--overlay); z-index: 99;
 }
-
-/* ===== Responsive ===== */
 @media (max-width: 768px) {
   .sidebar {
     position: fixed; left: 0; top: 0; z-index: 100;
@@ -410,125 +453,129 @@ a:hover { text-decoration: underline; }
   .stat-card .stat-value { font-size: 22px; }
   .messages-container { padding: 12px; }
   .message { max-width: 92%; }
+  .session-card { padding: 14px 16px; }
 }
 @media (max-width: 400px) {
   .stats-grid { grid-template-columns: 1fr; }
 }
-
-/* ===== Scrollbar for sidebar ===== */
 .sidebar-content::-webkit-scrollbar { width: 4px; }
 .sidebar-content::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 2px; }
 </style>
 </head>
 <body>
-
 <!-- Toast Container -->
 <div id="toast-container"></div>
-
 <!-- Login Page -->
 <div id="login-page">
   <div class="login-card">
     <span class="logo-icon">&#9679;</span>
-    <h1>CC Remote Dashboard</h1>
-    <p class="subtitle">Monitor and control Claude Code sessions</p>
+    <h1>CC 远程监控</h1>
+    <p class="subtitle">远程监控 Claude Code 工作状态</p>
     <form id="login-form" onsubmit="return handleLogin(event)">
       <div class="input-group">
-        <label for="api-key-input">API Key</label>
-        <input type="password" id="api-key-input" placeholder="Enter your API key" autocomplete="off" />
+        <label for="api-key-input">密钥</label>
+        <div class="input-with-btn">
+          <input type="password" id="api-key-input" placeholder="输入你的密钥" autocomplete="off" />
+          <button type="button" class="btn-copy-key" onclick="copyLoginKey()">复制密钥</button>
+        </div>
       </div>
-      <button type="submit" class="btn btn-primary" id="login-btn">Sign In</button>
+      <button type="submit" class="btn btn-primary" id="login-btn">登录</button>
     </form>
+    <p class="login-hint">密钥在服务器控制台中查看</p>
   </div>
 </div>
-
 <!-- App -->
 <div id="app">
   <div class="app-layout">
     <!-- Sidebar Overlay (mobile) -->
     <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
-
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
-        <h2>CC Dashboard</h2>
-        <button class="btn-icon" onclick="toggleTheme()" id="theme-btn" title="Toggle theme">&#9790;</button>
+        <h2>CC 监控面板</h2>
+        <button class="btn-icon" onclick="toggleTheme()" id="theme-btn" title="切换主题">&#9790;</button>
       </div>
       <div class="sidebar-content" id="sidebar-content">
         <!-- Active Sessions -->
         <div class="sidebar-section" id="active-section" style="display:none;">
-          <div class="sidebar-section-title">Active Sessions</div>
+          <div class="sidebar-section-title">活跃会话</div>
           <div id="active-list"></div>
         </div>
         <!-- Projects -->
         <div class="sidebar-section">
-          <div class="sidebar-section-title">Projects</div>
+          <div class="sidebar-section-title">工作区</div>
           <div id="project-list">
-            <div class="empty-state" style="padding:20px;"><p style="font-size:13px;">No projects found</p></div>
+            <div class="empty-state" style="padding:20px;"><p style="font-size:13px;">暂无工作区</p></div>
           </div>
         </div>
       </div>
       <div class="sidebar-footer">
-        <span class="version">CC Remote v1.0</span>
-        <button class="btn-icon" onclick="handleLogout()" title="Logout" style="font-size:14px;">&#8594;</button>
+        <div class="sidebar-footer-row">
+          <span class="version">CC Remote v1.0</span>
+          <button class="btn-icon" onclick="handleLogout()" title="退出" style="font-size:14px;">&#8594;</button>
+        </div>
+        <div class="sidebar-footer-row">
+          <span class="footer-link" id="footer-url"></span>
+        </div>
+        <div class="sidebar-footer-row">
+          <button class="btn-footer" onclick="copyCurrentUrl()">复制链接</button>
+          <button class="btn-footer" onclick="copyStoredKey()">复制密钥</button>
+        </div>
       </div>
     </aside>
-
     <!-- Main Content -->
     <div class="main">
       <div class="topbar">
         <button class="hamburger" onclick="toggleSidebar()">&#9776;</button>
-        <div class="topbar-title" id="topbar-title">Dashboard</div>
+        <div class="topbar-title" id="topbar-title">仪表盘</div>
         <div class="topbar-actions">
-          <button class="btn btn-sm btn-secondary" id="back-btn" style="display:none;" onclick="goBack()">&#8592; Back</button>
-          <button class="btn btn-sm btn-secondary" id="refresh-btn" onclick="refreshCurrent()">&#8635; Refresh</button>
+          <button class="btn btn-sm btn-secondary" id="back-btn" style="display:none;" onclick="goBack()">&#8592; 返回</button>
+          <button class="btn btn-sm btn-secondary" id="refresh-btn" onclick="refreshCurrent()">&#8635; 刷新</button>
         </div>
       </div>
-
       <!-- Dashboard View -->
       <div class="dashboard" id="view-dashboard">
         <div class="stats-grid" id="stats-grid">
           <div class="stat-card">
-            <div class="stat-label">CPU Usage</div>
+            <div class="stat-label">CPU 使用</div>
             <div class="stat-value" id="stat-cpu">--%</div>
             <div class="progress-bar"><div class="progress-fill low" id="bar-cpu" style="width:0%"></div></div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">Memory</div>
+            <div class="stat-label">内存</div>
             <div class="stat-value" id="stat-mem">--%</div>
             <div class="stat-sub" id="stat-mem-detail">-- / -- GB</div>
             <div class="progress-bar"><div class="progress-fill low" id="bar-mem" style="width:0%"></div></div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">CC Processes</div>
+            <div class="stat-label">CC 进程</div>
             <div class="stat-value" id="stat-cc">--</div>
-            <div class="stat-sub">Running instances</div>
+            <div class="stat-sub">运行中</div>
           </div>
           <div class="stat-card">
             <div class="stat-label">VS Code</div>
             <div class="stat-value" id="stat-vscode">--</div>
-            <div class="stat-sub">Active windows</div>
+            <div class="stat-sub">活跃窗口</div>
           </div>
         </div>
-        <div class="section-title">Running Processes</div>
+        <div class="section-title">运行中的进程</div>
         <div class="process-list" id="process-list">
           <div style="display:flex;align-items:center;gap:12px;padding:20px;">
             <div class="loading-spinner"></div>
-            <span style="color:var(--text-muted);font-size:14px;">Loading...</span>
+            <span style="color:var(--text-muted);font-size:14px;">加载中...</span>
           </div>
         </div>
       </div>
-
       <!-- Sessions List View -->
       <div class="dashboard" id="view-sessions" style="display:none;"></div>
-
       <!-- Conversation View -->
       <div class="conversation" id="view-conversation" style="display:none;">
         <div class="messages-container" id="messages-container"></div>
         <div class="message-input-area">
           <div class="input-row">
-            <button class="btn-icon" onclick="triggerUpload()" title="Upload image" style="font-size:16px;">&#128247;</button>
+            <button class="btn-icon" onclick="triggerUpload()" title="上传图片" style="font-size:16px;">&#128247;</button>
             <input type="file" id="file-input" accept="image/*" style="display:none;" onchange="handleUpload(this)" />
-            <textarea id="msg-input" placeholder="Type a message..." rows="1"
+            <textarea id="msg-input" placeholder="输入消息..." rows="1"
               onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage();}"
               oninput="autoResize(this)"></textarea>
             <button class="send-btn" onclick="sendMessage()" id="send-btn">&#9654;</button>
@@ -538,9 +585,7 @@ a:hover { text-decoration: underline; }
     </div>
   </div>
 </div>
-
 <script>
-/* ===== Global State ===== */
 const state = {
   projects: [],
   sessions: [],
@@ -554,8 +599,6 @@ const state = {
   currentView: 'dashboard',
   refreshTimers: []
 };
-
-/* ===== Initialization ===== */
 document.addEventListener('DOMContentLoaded', () => {
   const savedKey = localStorage.getItem('cc_api_key');
   if (savedKey) {
@@ -564,9 +607,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   const savedTheme = localStorage.getItem('cc_theme') || 'dark';
   setTheme(savedTheme);
+  updateFooterUrl();
 });
-
-/* ===== Theme ===== */
 function setTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   localStorage.setItem('cc_theme', theme);
@@ -577,8 +619,6 @@ function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme');
   setTheme(current === 'dark' ? 'light' : 'dark');
 }
-
-/* ===== Toast ===== */
 function showToast(msg, type = 'info') {
   const container = document.getElementById('toast-container');
   const el = document.createElement('div');
@@ -591,8 +631,36 @@ function showToast(msg, type = 'info') {
     setTimeout(() => el.remove(), 300);
   }, 3000);
 }
-
-/* ===== API ===== */
+function copyToClipboard(text, successMsg) {
+  if (!text) { showToast('没有可复制的内容', 'error'); return; }
+  navigator.clipboard.writeText(text).then(() => {
+    showToast(successMsg || '已复制到剪贴板', 'success');
+  }).catch(() => {
+    showToast('复制失败', 'error');
+  });
+}
+function copyLoginKey() {
+  const input = document.getElementById('api-key-input');
+  const val = input.value.trim();
+  if (!val) {
+    const stored = localStorage.getItem('cc_api_key');
+    if (stored) { copyToClipboard(stored, '已复制到剪贴板'); }
+    else { showToast('请先输入密钥', 'error'); }
+    return;
+  }
+  copyToClipboard(val, '已复制到剪贴板');
+}
+function copyCurrentUrl() {
+  copyToClipboard(window.location.href, '已复制到剪贴板');
+}
+function copyStoredKey() {
+  const key = localStorage.getItem('cc_api_key');
+  copyToClipboard(key, '已复制到剪贴板');
+}
+function updateFooterUrl() {
+  const el = document.getElementById('footer-url');
+  if (el) el.textContent = window.location.href;
+}
 async function apiFetch(url, opts = {}) {
   const headers = { ...opts.headers };
   if (state.apiKey) {
@@ -604,13 +672,11 @@ async function apiFetch(url, opts = {}) {
   }
   const res = await fetch(url, { ...opts, headers });
   if (!res.ok) {
-    const text = await res.text().catch(() => 'Request failed');
+    const text = await res.text().catch(() => '请求失败');
     throw new Error(text || 'HTTP ' + res.status);
   }
   return res.json();
 }
-
-/* ===== Auth ===== */
 async function checkAuth() {
   try {
     const data = await apiFetch('/api/auth/check');
@@ -623,7 +689,6 @@ async function checkAuth() {
     showLogin();
   }
 }
-
 async function handleLogin(e) {
   e.preventDefault();
   const input = document.getElementById('api-key-input');
@@ -631,7 +696,7 @@ async function handleLogin(e) {
   const key = input.value.trim();
   if (!key) return false;
   btn.disabled = true;
-  btn.textContent = 'Signing in...';
+  btn.textContent = '登录中...';
   try {
     await apiFetch('/api/auth/login', {
       method: 'POST',
@@ -641,21 +706,19 @@ async function handleLogin(e) {
     localStorage.setItem('cc_api_key', key);
     showApp();
   } catch (err) {
-    showToast('Login failed: ' + err.message, 'error');
+    showToast('登录失败: ' + err.message, 'error');
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Sign In';
+    btn.textContent = '登录';
   }
   return false;
 }
-
 function handleLogout() {
   state.apiKey = '';
   localStorage.removeItem('cc_api_key');
   stopAutoRefresh();
   showLogin();
 }
-
 function showLogin() {
   document.getElementById('login-page').style.display = 'flex';
   document.getElementById('app').style.display = 'none';
@@ -665,29 +728,26 @@ function showApp() {
   document.getElementById('app').style.display = 'block';
   navigateTo('dashboard');
   startAutoRefresh();
+  updateFooterUrl();
 }
-
-/* ===== Navigation ===== */
 function navigateTo(view, data) {
   state.currentView = view;
   document.getElementById('view-dashboard').style.display = view === 'dashboard' ? '' : 'none';
   document.getElementById('view-sessions').style.display = view === 'sessions' ? '' : 'none';
   document.getElementById('view-conversation').style.display = view === 'conversation' ? '' : 'none';
   document.getElementById('back-btn').style.display = view !== 'dashboard' ? '' : 'none';
-
   if (view === 'dashboard') {
-    document.getElementById('topbar-title').textContent = 'Dashboard';
+    document.getElementById('topbar-title').textContent = '仪表盘';
     loadSystemInfo();
   } else if (view === 'sessions') {
-    document.getElementById('topbar-title').textContent = state.currentProject ? shortPath(state.currentProject.path) : 'Sessions';
+    document.getElementById('topbar-title').textContent = state.currentProject ? shortPath(state.currentProject.path) : '会话';
     loadSessions();
   } else if (view === 'conversation') {
-    document.getElementById('topbar-title').textContent = state.currentSession ? state.currentSession.session_id.slice(0, 12) + '...' : 'Conversation';
+    document.getElementById('topbar-title').textContent = state.currentSession ? state.currentSession.session_id.slice(0, 12) + '...' : '对话';
     loadMessages();
   }
   closeSidebar();
 }
-
 function goBack() {
   if (state.currentView === 'conversation') {
     navigateTo('sessions');
@@ -695,14 +755,11 @@ function goBack() {
     navigateTo('dashboard');
   }
 }
-
 function refreshCurrent() {
   if (state.currentView === 'dashboard') loadSystemInfo();
   else if (state.currentView === 'sessions') loadSessions();
   else if (state.currentView === 'conversation') loadMessages();
 }
-
-/* ===== Sidebar ===== */
 function toggleSidebar() {
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('sidebar-overlay');
@@ -715,8 +772,6 @@ function closeSidebar() {
     document.getElementById('sidebar-overlay').classList.remove('open');
   }
 }
-
-/* ===== Auto Refresh ===== */
 function startAutoRefresh() {
   stopAutoRefresh();
   state.refreshTimers.push(setInterval(loadSystemInfo, 10000));
@@ -729,8 +784,6 @@ function stopAutoRefresh() {
   state.refreshTimers.forEach(clearInterval);
   state.refreshTimers = [];
 }
-
-/* ===== System Info ===== */
 async function loadSystemInfo() {
   try {
     const data = await apiFetch('/api/system');
@@ -738,7 +791,6 @@ async function loadSystemInfo() {
     renderSystemInfo(data);
   } catch {}
 }
-
 function renderSystemInfo(d) {
   const cpu = Math.round(d.cpu_percent || 0);
   const mem = Math.round(d.memory_percent || 0);
@@ -750,11 +802,10 @@ function renderSystemInfo(d) {
   document.getElementById('stat-vscode').textContent = d.vscode_count ?? '--';
   setProgressBar('bar-cpu', cpu);
   setProgressBar('bar-mem', mem);
-
   const list = document.getElementById('process-list');
   const procs = d.cc_processes || [];
   if (procs.length === 0) {
-    list.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:14px;">No CC processes running</div>';
+    list.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:14px;">没有运行中的 CC 进程</div>';
     return;
   }
   list.innerHTML = procs.map(p =>
@@ -765,14 +816,11 @@ function renderSystemInfo(d) {
     '</div>'
   ).join('');
 }
-
 function setProgressBar(id, pct) {
   const el = document.getElementById(id);
   el.style.width = pct + '%';
   el.className = 'progress-fill ' + (pct > 80 ? 'high' : pct > 50 ? 'mid' : 'low');
 }
-
-/* ===== Active Sessions ===== */
 async function loadActiveSessions() {
   try {
     const data = await apiFetch('/api/active');
@@ -780,7 +828,6 @@ async function loadActiveSessions() {
     renderActiveSessions();
   } catch {}
 }
-
 function renderActiveSessions() {
   const section = document.getElementById('active-section');
   const list = document.getElementById('active-list');
@@ -794,26 +841,23 @@ function renderActiveSessions() {
     '<span class="dot dot-active"></span>' +
     '<div class="item-info">' +
     '<div class="item-path">PID ' + (a.pid || '?') + '</div>' +
-    '<div class="item-meta">' + (a.running ? 'Running' : 'Idle') + '</div>' +
+    '<div class="item-meta">' + (a.running ? '运行中' : '空闲') + '</div>' +
     '</div></div>'
   ).join('');
 }
-
-/* ===== Projects ===== */
 async function loadProjects() {
   try {
     const data = await apiFetch('/api/projects');
     state.projects = data.projects || [];
     renderProjects();
   } catch (err) {
-    showToast('Failed to load projects: ' + err.message, 'error');
+    showToast('加载工作区失败: ' + err.message, 'error');
   }
 }
-
 function renderProjects() {
   const container = document.getElementById('project-list');
   if (!state.projects.length) {
-    container.innerHTML = '<div class="empty-state" style="padding:20px;"><p style="font-size:13px;">No projects found</p></div>';
+    container.innerHTML = '<div class="empty-state" style="padding:20px;"><p style="font-size:13px;">暂无工作区</p></div>';
     return;
   }
   container.innerHTML = state.projects.map(p => {
@@ -823,88 +867,85 @@ function renderProjects() {
       '<span class="dot ' + dotClass + '"></span>' +
       '<div class="item-info">' +
       '<div class="item-path">' + escHtml(shortPath(p.path)) + '</div>' +
-      '<div class="item-meta">' + (p.session_count || 0) + ' session(s)</div>' +
+      '<div class="item-meta">' + (p.session_count || 0) + ' 个会话</div>' +
       '</div></div>';
   }).join('');
 }
-
 function selectProject(hash) {
   state.currentProject = state.projects.find(p => p.hash === hash) || null;
   renderProjects();
   navigateTo('sessions');
 }
-
-/* ===== Sessions ===== */
 async function loadSessions() {
   if (!state.currentProject) return;
   const container = document.getElementById('view-sessions');
-  container.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:20px;"><div class="loading-spinner"></div><span style="color:var(--text-muted);font-size:14px;">Loading sessions...</span></div>';
+  container.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:20px;"><div class="loading-spinner"></div><span style="color:var(--text-muted);font-size:14px;">加载会话中...</span></div>';
   try {
     const data = await apiFetch('/api/projects/' + state.currentProject.hash + '/sessions');
     state.sessions = data.sessions || [];
     renderSessions();
   } catch (err) {
-    container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><h3>Failed to load</h3><p>' + escHtml(err.message) + '</p></div>';
+    container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><h3>加载失败</h3><p>' + escHtml(err.message) + '</p></div>';
   }
 }
-
 function renderSessions() {
   const container = document.getElementById('view-sessions');
   if (!state.sessions.length) {
     container.innerHTML = '<div class="empty-state">' +
       '<div class="icon">&#128196;</div>' +
-      '<h3>No sessions</h3>' +
-      '<p>This project has no recorded sessions yet.</p>' +
-      '<button class="btn btn-primary" style="margin-top:16px;max-width:200px;" onclick="showNewSessionDialog()">Start New Session</button>' +
+      '<h3>暂无会话</h3>' +
+      '<p>该项目还没有记录的会话。</p>' +
+      '<button class="btn btn-primary" style="margin-top:16px;max-width:200px;" onclick="showNewSessionDialog()">新会话</button>' +
       '</div>';
     return;
   }
   let html = '<div style="padding:20px;">';
   html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">';
-  html += '<div class="section-title" style="margin:0;">Sessions</div>';
-  html += '<button class="btn btn-sm btn-primary" onclick="showNewSessionDialog()">+ New Session</button>';
+  html += '<div class="section-title" style="margin:0;">会话列表</div>';
+  html += '<button class="btn btn-sm btn-primary" onclick="showNewSessionDialog()">+ 新会话</button>';
   html += '</div>';
-  html += '<div class="process-list">';
   state.sessions.forEach(s => {
-    const dotClass = s.status === 'active' ? 'dot-active' : (s.status === 'recent' ? 'dot-recent' : 'dot-idle');
+    const statusColor = s.status === 'active' ? 'var(--success)' : (s.status === 'recent' ? 'var(--warning)' : 'var(--text-muted)');
+    const statusText = s.status === 'active' ? '活跃' : (s.status === 'recent' ? '最近' : '空闲');
     const ago = s.last_modified ? timeAgo(new Date(s.last_modified)) : '';
-    html += '<div class="process-item" style="cursor:pointer;" onclick="selectSession(\'' + s.session_id + '\')">' +
-      '<span class="dot ' + dotClass + '"></span>' +
-      '<div style="flex:1;min-width:0;">' +
-      '<div style="font-weight:500;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escHtml(s.session_id.slice(0, 16)) + '...</div>' +
-      '<div style="font-size:11px;color:var(--text-muted);">' + (s.size_kb ? s.size_kb + ' KB' : '') + (ago ? ' &middot; ' + ago : '') + '</div>' +
-      '</div>' +
-      '<span class="dot ' + dotClass + '" title="' + (s.status || 'unknown') + '"></span>' +
+    const sizeStr = s.size_kb ? (s.size_kb > 1024 ? (s.size_kb / 1024).toFixed(1) + ' MB' : s.size_kb + ' KB') : '';
+    html += '<div class="session-card" onclick="selectSession(\'' + s.session_id + '\')">' +
+      '<div class="session-status" style="background:' + statusColor + ';" title="' + statusText + '"></div>' +
+      '<div class="session-body">' +
+      '<div class="session-id">' + escHtml(s.session_id.slice(0, 20)) + '...</div>' +
+      '<div class="session-meta">' +
+      '<span class="meta-item">' + statusText + '</span>' +
+      (sizeStr ? '<span class="meta-item">' + sizeStr + '</span>' : '') +
+      (ago ? '<span class="meta-item">' + ago + '</span>' : '') +
+      '</div></div>' +
+      '<span class="session-enter">进入对话</span>' +
+      '<span class="session-arrow">&#8594;</span>' +
       '</div>';
   });
-  html += '</div></div>';
+  html += '</div>';
   container.innerHTML = html;
 }
-
 function selectSession(sid) {
   state.currentSession = state.sessions.find(s => s.session_id === sid) || { session_id: sid };
   navigateTo('conversation');
 }
-
-/* ===== Conversation / Messages ===== */
 async function loadMessages() {
   if (!state.currentProject || !state.currentSession) return;
   const container = document.getElementById('messages-container');
-  container.innerHTML = '<div class="empty-state"><div class="loading-spinner"></div><p style="margin-top:12px;color:var(--text-muted);">Loading messages...</p></div>';
+  container.innerHTML = '<div class="empty-state"><div class="loading-spinner"></div><p style="margin-top:12px;color:var(--text-muted);">加载消息中...</p></div>';
   try {
     const data = await apiFetch('/api/projects/' + state.currentProject.hash + '/sessions/' + state.currentSession.session_id + '/messages?last_n=100');
     state.messages = data.messages || [];
     state.autoScroll = true;
     renderMessages();
   } catch (err) {
-    container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><h3>Failed to load</h3><p>' + escHtml(err.message) + '</p></div>';
+    container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><h3>加载失败</h3><p>' + escHtml(err.message) + '</p></div>';
   }
 }
-
 function renderMessages() {
   const container = document.getElementById('messages-container');
   if (!state.messages.length) {
-    container.innerHTML = '<div class="empty-state"><div class="icon">&#128172;</div><h3>No messages</h3><p>Start a conversation by typing below.</p></div>';
+    container.innerHTML = '<div class="empty-state"><div class="icon">&#128172;</div><h3>暂无消息</h3><p>在下方输入消息开始对话。</p></div>';
     return;
   }
   container.innerHTML = state.messages.map(renderMessage).join('');
@@ -912,7 +953,6 @@ function renderMessages() {
     container.scrollTop = container.scrollHeight;
   }
 }
-
 function renderMessage(m) {
   const isUser = m.type === 'user';
   const cls = isUser ? 'user' : 'assistant';
@@ -931,14 +971,13 @@ function renderMessage(m) {
     html += '<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;">';
     m.tool_uses.forEach(t => {
       const icon = toolIcon(t.name || t.tool || '');
-      html += '<span class="tool-badge">' + icon + ' ' + escHtml(t.name || t.tool || 'Tool') + '</span>';
+      html += '<span class="tool-badge">' + icon + ' ' + escHtml(t.name || t.tool || '工具') + '</span>';
     });
     html += '</div>';
   }
   html += '</div></div>';
   return html;
 }
-
 function toolIcon(name) {
   const n = (name || '').toLowerCase();
   if (n.includes('bash') || n.includes('shell')) return '&#128295;';
@@ -948,45 +987,36 @@ function toolIcon(name) {
   if (n.includes('web')) return '&#127760;';
   return '&#128295;';
 }
-
-/* ===== Send Message ===== */
 async function sendMessage() {
   const input = document.getElementById('msg-input');
   const text = input.value.trim();
   if (!text || !state.currentProject || !state.currentSession) return;
-
   const sendBtn = document.getElementById('send-btn');
   sendBtn.disabled = true;
   input.value = '';
   input.style.height = 'auto';
-
   // Optimistic UI
   state.messages.push({ type: 'user', text: text, timestamp: new Date().toISOString() });
   state.autoScroll = true;
   renderMessages();
-
   try {
     await apiFetch('/api/projects/' + state.currentProject.hash + '/sessions/' + state.currentSession.session_id + '/send', {
       method: 'POST',
       body: { message: text }
     });
-    showToast('Message sent', 'success');
-    // Reload messages after a short delay
+    showToast('消息已发送', 'success');
     setTimeout(loadMessages, 2000);
   } catch (err) {
-    showToast('Failed to send: ' + err.message, 'error');
+    showToast('发送失败: ' + err.message, 'error');
   } finally {
     sendBtn.disabled = false;
   }
 }
-
-/* ===== New Session ===== */
 function showNewSessionDialog() {
-  const msg = prompt('Enter initial message for new session:');
+  const msg = prompt('输入新会话的初始消息:');
   if (!msg || !msg.trim()) return;
   newSession(msg.trim());
 }
-
 async function newSession(msg) {
   if (!state.currentProject) return;
   try {
@@ -994,44 +1024,37 @@ async function newSession(msg) {
       method: 'POST',
       body: { message: msg, cwd: state.currentProject.path }
     });
-    showToast('Session created', 'success');
+    showToast('会话已创建', 'success');
     if (data.session_id) {
       state.currentSession = { session_id: data.session_id };
       navigateTo('conversation');
     }
     loadSessions();
   } catch (err) {
-    showToast('Failed to create session: ' + err.message, 'error');
+    showToast('创建会话失败: ' + err.message, 'error');
   }
 }
-
-/* ===== Image Upload ===== */
 function triggerUpload() {
   document.getElementById('file-input').click();
 }
-
 async function handleUpload(input) {
   const file = input.files[0];
   if (!file || !state.currentProject || !state.currentSession) return;
   input.value = '';
-
   const formData = new FormData();
   formData.append('file', file);
-
   try {
     await apiFetch('/api/projects/' + state.currentProject.hash + '/sessions/' + state.currentSession.session_id + '/upload', {
       method: 'POST',
       body: formData,
       headers: { 'Authorization': 'Bearer ' + state.apiKey }
     });
-    showToast('Image uploaded', 'success');
+    showToast('图片已上传', 'success');
     setTimeout(loadMessages, 2000);
   } catch (err) {
-    showToast('Upload failed: ' + err.message, 'error');
+    showToast('上传失败: ' + err.message, 'error');
   }
 }
-
-/* ===== Scroll tracking ===== */
 document.addEventListener('DOMContentLoaded', () => {
   const mc = document.getElementById('messages-container');
   if (mc) {
@@ -1041,79 +1064,60 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
-
-/* ===== Auto-resize textarea ===== */
 function autoResize(el) {
   el.style.height = 'auto';
   el.style.height = Math.min(el.scrollHeight, 120) + 'px';
 }
-
-/* ===== Simple Markdown Renderer ===== */
 function renderMarkdown(text) {
   if (!text) return '';
   let html = escHtml(text);
-
   // Code blocks
   html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
     return '<pre><code class="lang-' + (lang || 'text') + '">' + code.trim() + '</code></pre>';
   });
-
   // Inline code
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-
   // Bold
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-
   // Italic
   html = html.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
-
   // Links
   html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-
   // Unordered lists
   html = html.replace(/(^|\n)((?:- .+\n?)+)/g, (_, pre, list) => {
     const items = list.trim().split('\n').map(i => '<li>' + i.replace(/^- /, '') + '</li>').join('');
     return pre + '<ul>' + items + '</ul>';
   });
-
   // Ordered lists
   html = html.replace(/(^|\n)((?:\d+\. .+\n?)+)/g, (_, pre, list) => {
     const items = list.trim().split('\n').map(i => '<li>' + i.replace(/^\d+\. /, '') + '</li>').join('');
     return pre + '<ol>' + items + '</ol>';
   });
-
   // Paragraphs (double newline)
   html = html.replace(/\n\n+/g, '</p><p>');
   // Single newlines to <br>
   html = html.replace(/\n/g, '<br>');
-
   // Wrap in paragraph if not already
   if (!html.startsWith('<')) html = '<p>' + html + '</p>';
-
   return html;
 }
-
-/* ===== Utilities ===== */
 function escHtml(s) {
   const el = document.createElement('span');
   el.textContent = s;
   return el.innerHTML;
 }
-
 function shortPath(p) {
   if (!p) return '';
   const parts = p.replace(/\\/g, '/').split('/');
   return parts.slice(-2).join('/');
 }
-
 function timeAgo(date) {
   const secs = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (secs < 60) return 'just now';
-  if (secs < 3600) return Math.floor(secs / 60) + 'm ago';
-  if (secs < 86400) return Math.floor(secs / 3600) + 'h ago';
-  return Math.floor(secs / 86400) + 'd ago';
+  if (secs < 60) return '刚刚';
+  if (secs < 3600) return Math.floor(secs / 60) + '分钟前';
+  if (secs < 86400) return Math.floor(secs / 3600) + '小时前';
+  return Math.floor(secs / 86400) + '天前';
 }
-
 function formatTime(ts) {
   try {
     const d = new Date(ts);
