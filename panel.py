@@ -209,14 +209,18 @@ class PanelAPI:
         if server_running:
             return
         python = sys.executable
-        server_process = subprocess.Popen(
-            [python, "server.py"],
-            cwd=str(PROJECT_DIR),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-        )
-        server_running = True
-        threading.Thread(target=self._monitor, daemon=True).start()
+        try:
+            server_process = subprocess.Popen(
+                [python, "-u", "server.py"],
+                cwd=str(PROJECT_DIR),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+            )
+            server_running = True
+            threading.Thread(target=self._monitor, daemon=True).start()
+        except Exception as e:
+            pass
 
     def _monitor(self):
         global server_process, server_running

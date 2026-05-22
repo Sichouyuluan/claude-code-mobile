@@ -52,14 +52,38 @@ class ClaudeReader:
         active = []
         if not self.sessions_dir.exists():
             return active
-        for lock in self.sessions_dir.glob("*.lock"):
+        # sessions/<pid>.json contains session info
+        for p in self.sessions_dir.glob("*.json"):
             try:
-                pid = int(lock.stem)
+                pid = int(p.stem)
             except ValueError:
                 continue
-            active.append({"pid": pid, "running": self._is_running(pid),
-                           "lock_modified": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(lock.stat().st_mtime))})
+            info = self._read_session_json(pid)
+            if not info:
+                continue
+            running = self._is_running(pid)
+            active.append({
+                "pid": pid, "running": running,
+                "session_id": info.get("sessionId", ""),
+                "cwd": info.get("cwd", ""),
+                "version": info.get("version", ""),
+                "entrypoint": info.get("entrypoint", ""),
+                "started_at": info.get("startedAt", 0),
+            })
+        # Sort by started_at descending (most recent first)
+        active.sort(key=lambda x: x.get("started_at", 0), reverse=True)
         return active
+
+    def _read_session_json(self, pid):
+        """Read sessions/<pid>.json for session metadata"""
+        p = self.sessions_dir / f"{pid}.json"
+        if not p.exists():
+            return {}
+        try:
+            with open(p, "r", encoding="utf-8", errors="replace") as f:
+                return json.loads(f.read())
+        except Exception:
+            return {}
 
     def read_conversation(self, project_hash, session_id, last_n=50):
         p = self.projects_dir / project_hash / f"{session_id}.jsonl"
