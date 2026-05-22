@@ -1,6 +1,33 @@
 __pycache__/
 *.pyc
-logs/
+*.pyo
+
+# Secrets & credentials
 .api_key
-node_modules/
 .env
+*.env
+.env.*
+secrets/
+
+# Logs
+logs/
+
+# IDE & tooling
+.claude/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Reference materials (not part of the app)
+参考项目/
+plan.md
+CLAUDE.md
+
+# Node (if used for dev)
+node_modules/
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store

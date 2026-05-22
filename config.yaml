@@ -2,6 +2,6 @@ host: 0.0.0.0
 port: 8001
 require_api_key: true
 rate_limit_per_minute: 30
-claude_home: "C:\\Users\\Luan\\.claude"
+claude_home: ""  # empty = auto-detect ~/.claude
 max_upload_mb: 5
 session_cookie_days: 30
