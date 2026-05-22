@@ -1,276 +1,235 @@
-"""CC Remote Dashboard — 桌面管理面板"""
+"""CC Remote Dashboard — 原生桌面管理面板"""
 import os
 import sys
 import subprocess
 import threading
-import webbrowser
 from pathlib import Path
 
-import webview
+import customtkinter as ctk
+
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("blue")
 
 PROJECT_DIR = Path(__file__).parent
 API_KEY_FILE = PROJECT_DIR / ".api_key"
 CONFIG_FILE = PROJECT_DIR / "config.yaml"
-LOG_DIR = PROJECT_DIR / "logs"
-
-server_process = None
-server_running = False
 
 
 def get_api_key():
-    if API_KEY_FILE.exists():
+    try:
         return API_KEY_FILE.read_text().strip()
-    return "未生成"
+    except Exception:
+        return "未生成"
 
 
 def get_port():
     try:
         import yaml
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-            cfg = yaml.safe_load(f) or {}
-        return cfg.get("port", 8001)
+            return yaml.safe_load(f).get("port", 8001)
     except Exception:
         return 8001
 
 
-def get_system_info():
-    try:
-        import psutil
-        cpu = psutil.cpu_percent(interval=0.1)
-        mem = psutil.virtual_memory()
-        cc_count = 0
-        for proc in psutil.process_iter(["name"]):
-            try:
-                name = (proc.info["name"] or "").lower()
-                if "claude" in name:
-                    cc_count += 1
-            except Exception:
-                pass
-        return {"cpu": cpu, "mem_percent": mem.percent,
-                "mem_used": round(mem.used / 1024**3, 1),
-                "mem_total": round(mem.total / 1024**3, 1),
-                "cc_count": cc_count}
-    except ImportError:
-        return {"cpu": 0, "mem_percent": 0, "mem_used": 0, "mem_total": 0, "cc_count": 0}
+class Panel(ctk.CTk):
+    def __init__(self):
+        super().__init__()
+        self.title("CC Remote Dashboard")
+        self.geometry("480x680")
+        self.minsize(400, 500)
+        self.configure(fg_color="#0f1117")
+        self.server_process = None
+        self.server_running = False
+        self._build_ui()
+        self._refresh()
 
+    def _build_ui(self):
+        scroll = ctk.CTkScrollableFrame(self, fg_color="transparent")
+        scroll.pack(fill="both", expand=True, padx=16, pady=16)
 
-def get_recent_logs(n=20):
-    if not LOG_DIR.exists():
-        return []
-    log_files = sorted(LOG_DIR.glob("cc_*.log"), reverse=True)
-    if not log_files:
-        return []
-    try:
-        with open(log_files[0], "r", encoding="utf-8", errors="replace") as f:
-            lines = f.readlines()
-        return [l.rstrip() for l in lines[-n:]]
-    except Exception:
-        return []
+        ctk.CTkLabel(scroll, text="CC Remote Dashboard",
+                     font=ctk.CTkFont(size=20, weight="bold"),
+                     text_color="#60a5fa").pack(pady=(0, 4))
+        ctk.CTkLabel(scroll, text="管理面板",
+                     font=ctk.CTkFont(size=11),
+                     text_color="#6b7280").pack(pady=(0, 16))
 
+        # Service Status
+        ctk.CTkLabel(scroll, text="服务状态",
+                     font=ctk.CTkFont(size=11, weight="bold"),
+                     text_color="#6b7280").pack(anchor="w", pady=(8, 6))
+        self.status_label = ctk.CTkLabel(scroll, text="检测中...",
+                                         font=ctk.CTkFont(size=13, weight="bold"))
+        self.status_label.pack(anchor="w", pady=(0, 8))
 
-PANEL_HTML = """
-<!DOCTYPE html>
-<html lang="zh">
-<head>
-<meta charset="UTF-8">
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter',system-ui,sans-serif;background:linear-gradient(135deg,#0a0e1a 0%,#0d1526 30%,#111d35 60%,#0a0e1a 100%);color:#e0e0e0;min-height:100vh;overflow-x:hidden}
-body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(ellipse at 20% 50%,rgba(59,130,246,0.08) 0%,transparent 50%),radial-gradient(ellipse at 80% 20%,rgba(139,92,246,0.06) 0%,transparent 50%),radial-gradient(ellipse at 50% 80%,rgba(6,182,212,0.05) 0%,transparent 50%);animation:bgFloat 20s ease-in-out infinite;z-index:0;pointer-events:none}
-@keyframes bgFloat{0%,100%{transform:translate(0,0) rotate(0deg)}33%{transform:translate(2%,-1%) rotate(1deg)}66%{transform:translate(-1%,1%) rotate(-1deg)}}
-.container{position:relative;z-index:1;max-width:520px;margin:0 auto;padding:24px 20px}
-.header{text-align:center;margin-bottom:28px}
-.header h1{font-size:22px;font-weight:700;background:linear-gradient(135deg,#60a5fa,#a78bfa,#22d3ee);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px}
-.header .subtitle{font-size:12px;color:rgba(255,255,255,0.4);letter-spacing:2px;text-transform:uppercase}
-.glass{background:rgba(255,255,255,0.04);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:20px;margin-bottom:16px;transition:all 0.3s ease}
-.glass:hover{background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.12)}
-.glass-title{font-size:11px;font-weight:600;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:14px}
-.status-row{display:flex;align-items:center;gap:12px;margin-bottom:16px}
-.status-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.status-dot.running{background:#22c55e;box-shadow:0 0 12px rgba(34,197,94,0.5);animation:pulse 2s infinite}
-.status-dot.stopped{background:#6b7280}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
-.status-text{font-size:15px;font-weight:500}
-.btn-row{display:flex;gap:10px;margin-top:12px}
-.btn{flex:1;padding:12px 16px;border:none;border-radius:12px;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s;font-family:inherit}
-.btn-primary{background:linear-gradient(135deg,#3b82f6,#2563eb);color:white;box-shadow:0 4px 15px rgba(59,130,246,0.3)}
-.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(59,130,246,0.4)}
-.btn-danger{background:linear-gradient(135deg,#ef4444,#dc2626);color:white;box-shadow:0 4px 15px rgba(239,68,68,0.3)}
-.btn-danger:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(239,68,68,0.4)}
-.btn-glass{background:rgba(255,255,255,0.06);color:#e0e0e0;border:1px solid rgba(255,255,255,0.1)}
-.btn-glass:hover{background:rgba(255,255,255,0.1)}
-.btn:disabled{opacity:0.4;cursor:not-allowed;transform:none !important}
-.info-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04)}
-.info-row:last-child{border-bottom:none}
-.info-label{font-size:12px;color:rgba(255,255,255,0.5)}
-.info-value{font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px}
-.copy-btn{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.6);padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;transition:all 0.2s;font-family:inherit}
-.copy-btn:hover{background:rgba(255,255,255,0.15);color:white}
-.copy-btn.copied{background:rgba(34,197,94,0.2);color:#22c55e;border-color:rgba(34,197,94,0.3)}
-.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.stat-item{background:rgba(255,255,255,0.03);border-radius:10px;padding:12px;text-align:center}
-.stat-value{font-size:22px;font-weight:700;background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.stat-label{font-size:11px;color:rgba(255,255,255,0.4);margin-top:2px}
-.progress-bar{height:4px;background:rgba(255,255,255,0.06);border-radius:2px;margin-top:8px;overflow:hidden}
-.progress-fill{height:100%;border-radius:2px;transition:width 0.5s ease,background 0.3s}
-.progress-fill.low{background:#22c55e}
-.progress-fill.mid{background:#f59e0b}
-.progress-fill.high{background:#ef4444}
-.log-box{background:rgba(0,0,0,0.3);border-radius:10px;padding:12px;max-height:160px;overflow-y:auto;font-family:'SF Mono','Fira Code',monospace;font-size:11px;line-height:1.6;color:rgba(255,255,255,0.5)}
-.log-box::-webkit-scrollbar{width:4px}
-.log-box::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
-.log-line{white-space:pre-wrap;word-break:break-all}
-.log-line.error{color:#ef4444}
-.log-line.warn{color:#f59e0b}
-.footer{text-align:center;margin-top:20px;font-size:11px;color:rgba(255,255,255,0.2)}
-</style>
-</head>
-<body>
-<div class="container">
-  <div class="header">
-    <h1>CC Remote Dashboard</h1>
-    <div class="subtitle">管理面板</div>
-  </div>
-  <div class="glass">
-    <div class="glass-title">服务状态</div>
-    <div class="status-row">
-      <div class="status-dot" id="status-dot"></div>
-      <span class="status-text" id="status-text">检测中...</span>
-    </div>
-    <div class="btn-row">
-      <button class="btn btn-primary" id="btn-start" onclick="startServer()">启动服务</button>
-      <button class="btn btn-danger" id="btn-stop" onclick="stopServer()" disabled>停止服务</button>
-    </div>
-  </div>
-  <div class="glass">
-    <div class="glass-title">连接信息</div>
-    <div class="info-row">
-      <span class="info-label">访问地址</span>
-      <span class="info-value"><span id="url-text">--</span><button class="copy-btn" onclick="copyText('url-text')">复制</button></span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">API 密钥</span>
-      <span class="info-value"><span id="key-text">--</span><button class="copy-btn" onclick="copyText('key-text')">复制</button></span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">端口</span>
-      <span class="info-value" id="port-text">8001</span>
-    </div>
-    <div class="btn-row" style="margin-top:12px;">
-      <button class="btn btn-glass" onclick="openDashboard()">打开面板</button>
-      <button class="btn btn-glass" onclick="openTunnel()">启动隧道</button>
-    </div>
-  </div>
-  <div class="glass">
-    <div class="glass-title">系统状态</div>
-    <div class="stats-grid">
-      <div class="stat-item">
-        <div class="stat-value" id="cpu-val">--</div>
-        <div class="stat-label">CPU</div>
-        <div class="progress-bar"><div class="progress-fill low" id="cpu-bar" style="width:0%"></div></div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-value" id="mem-val">--</div>
-        <div class="stat-label">内存</div>
-        <div class="progress-bar"><div class="progress-fill low" id="mem-bar" style="width:0%"></div></div>
-      </div>
-    </div>
-    <div class="info-row" style="margin-top:10px;">
-      <span class="info-label">CC 进程</span>
-      <span class="info-value" id="cc-count">--</span>
-    </div>
-  </div>
-  <div class="glass">
-    <div class="glass-title">最近日志</div>
-    <div class="log-box" id="log-box">暂无日志</div>
-  </div>
-  <div class="footer">CC Remote Dashboard v1.0</div>
-</div>
-<script>
-function updateStatus(){try{const i=pywebview.api.get_status();const d=document.getElementById('status-dot');const t=document.getElementById('status-text');const bs=document.getElementById('btn-start');const bp=document.getElementById('btn-stop');if(i.running){d.className='status-dot running';t.textContent='服务运行中';t.style.color='#22c55e';bs.disabled=true;bp.disabled=false;document.getElementById('url-text').textContent='http://localhost:'+i.port}else{d.className='status-dot stopped';t.textContent='服务已停止';t.style.color='#9ca3af';bs.disabled=false;bp.disabled=true;document.getElementById('url-text').textContent='--'}document.getElementById('key-text').textContent=i.api_key;document.getElementById('port-text').textContent=i.port}catch(e){}}
-function updateSystem(){try{const s=pywebview.api.get_system();document.getElementById('cpu-val').textContent=s.cpu+'%';document.getElementById('mem-val').textContent=s.mem_percent+'%';document.getElementById('cc-count').textContent=s.cc_count+' 个';const cb=document.getElementById('cpu-bar');cb.style.width=s.cpu+'%';cb.className='progress-fill '+(s.cpu<60?'low':s.cpu<85?'mid':'high');const mb=document.getElementById('mem-bar');mb.style.width=s.mem_percent+'%';mb.className='progress-fill '+(s.mem_percent<60?'low':s.mem_percent<85?'mid':'high')}catch(e){}}
-function updateLogs(){try{const l=pywebview.api.get_logs();const b=document.getElementById('log-box');if(l.length===0){b.innerHTML='暂无日志';return}b.innerHTML=l.map(x=>{let c='log-line';if(x.includes('ERROR')||x.includes('error'))c+=' error';else if(x.includes('WARNING')||x.includes('warn'))c+=' warn';return'<div class="'+c+'">'+x.replace(/</g,'&lt;')+'</div>'}).join('');b.scrollTop=b.scrollHeight}catch(e){}}
-function startServer(){pywebview.api.start_server();setTimeout(updateStatus,1500)}
-function stopServer(){pywebview.api.stop_server();setTimeout(updateStatus,1000)}
-function openDashboard(){pywebview.api.open_dashboard()}
-function openTunnel(){pywebview.api.open_tunnel()}
-function copyText(id){const t=document.getElementById(id).textContent;if(t&&t!=='--'){navigator.clipboard.writeText(t).then(()=>{const b=document.getElementById(id).parentElement.querySelector('.copy-btn');b.textContent='已复制';b.classList.add('copied');setTimeout(()=>{b.textContent='复制';b.classList.remove('copied')},1500)})}}
-setTimeout(()=>{updateStatus();updateSystem();updateLogs()},500);
-setInterval(updateSystem,3000);setInterval(updateLogs,5000);setInterval(updateStatus,3000);
-</script>
-</body>
-</html>"""
+        btn_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        btn_frame.pack(fill="x", pady=(0, 16))
+        self.btn_start = ctk.CTkButton(btn_frame, text="启动服务", height=36,
+                                        fg_color="#22c55e", hover_color="#16a34a",
+                                        command=self._start)
+        self.btn_start.pack(side="left", expand=True, fill="x", padx=(0, 4))
+        self.btn_stop = ctk.CTkButton(btn_frame, text="停止服务", height=36,
+                                       fg_color="#ef4444", hover_color="#dc2626",
+                                       command=self._stop, state="disabled")
+        self.btn_stop.pack(side="left", expand=True, fill="x", padx=(4, 0))
 
+        # Connection Info
+        ctk.CTkLabel(scroll, text="连接信息",
+                     font=ctk.CTkFont(size=11, weight="bold"),
+                     text_color="#6b7280").pack(anchor="w", pady=(8, 6))
 
-class PanelAPI:
-    def start_server(self):
-        global server_process, server_running
-        if server_running:
+        f1 = ctk.CTkFrame(scroll, fg_color="#1a1d27", corner_radius=8)
+        f1.pack(fill="x", pady=2)
+        ctk.CTkLabel(f1, text="访问地址", font=ctk.CTkFont(size=11),
+                     text_color="#9ca3af").pack(side="left", padx=10, pady=6)
+        self.url_label = ctk.CTkLabel(f1, text="--", font=ctk.CTkFont(size=12, weight="bold"),
+                                      text_color="#e4e4e7")
+        self.url_label.pack(side="right", padx=10, pady=6)
+
+        f2 = ctk.CTkFrame(scroll, fg_color="#1a1d27", corner_radius=8)
+        f2.pack(fill="x", pady=2)
+        ctk.CTkLabel(f2, text="API 密钥", font=ctk.CTkFont(size=11),
+                     text_color="#9ca3af").pack(side="left", padx=10, pady=6)
+        self.key_label = ctk.CTkLabel(f2, text="--", font=ctk.CTkFont(size=12, weight="bold"),
+                                      text_color="#e4e4e7")
+        self.key_label.pack(side="right", padx=10, pady=6)
+
+        ctk.CTkButton(scroll, text="复制密钥", height=28, width=100,
+                       fg_color="#374151", hover_color="#4b5563",
+                       command=self._copy_key).pack(anchor="e", pady=(0, 16))
+
+        # System Status
+        ctk.CTkLabel(scroll, text="系统状态",
+                     font=ctk.CTkFont(size=11, weight="bold"),
+                     text_color="#6b7280").pack(anchor="w", pady=(8, 6))
+
+        sys_f = ctk.CTkFrame(scroll, fg_color="transparent")
+        sys_f.pack(fill="x", pady=(0, 16))
+
+        self.cpu_label = ctk.CTkLabel(sys_f, text="CPU: --", font=ctk.CTkFont(size=12))
+        self.cpu_label.pack(anchor="w")
+        self.cpu_bar = ctk.CTkProgressBar(sys_f, height=6)
+        self.cpu_bar.pack(fill="x", pady=(2, 8))
+        self.cpu_bar.set(0)
+
+        self.mem_label = ctk.CTkLabel(sys_f, text="内存: --", font=ctk.CTkFont(size=12))
+        self.mem_label.pack(anchor="w")
+        self.mem_bar = ctk.CTkProgressBar(sys_f, height=6)
+        self.mem_bar.pack(fill="x", pady=(2, 8))
+        self.mem_bar.set(0)
+
+        self.cc_label = ctk.CTkLabel(sys_f, text="CC 进程: --", font=ctk.CTkFont(size=12))
+        self.cc_label.pack(anchor="w")
+
+        # Logs
+        ctk.CTkLabel(scroll, text="最近日志",
+                     font=ctk.CTkFont(size=11, weight="bold"),
+                     text_color="#6b7280").pack(anchor="w", pady=(8, 6))
+
+        self.log_box = ctk.CTkTextbox(scroll, height=120,
+                                       font=ctk.CTkFont(family="Consolas", size=10),
+                                       fg_color="#0a0e1a", text_color="#6b7280")
+        self.log_box.pack(fill="x", pady=(0, 16))
+        self.log_box.insert("0.0", "暂无日志")
+        self.log_box.configure(state="disabled")
+
+        ctk.CTkLabel(scroll, text="CC Remote v1.0",
+                     font=ctk.CTkFont(size=10),
+                     text_color="#374151").pack(pady=(8, 0))
+
+    def _start(self):
+        if self.server_running:
             return
-        python = sys.executable
         try:
-            server_process = subprocess.Popen(
-                [python, "-u", "server.py"],
+            flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+            self.server_process = subprocess.Popen(
+                [sys.executable, "-u", "server.py"],
                 cwd=str(PROJECT_DIR),
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                creationflags=flags,
             )
-            server_running = True
+            self.server_running = True
+            self._refresh()
             threading.Thread(target=self._monitor, daemon=True).start()
         except Exception as e:
-            pass
+            self.status_label.configure(text=f"启动失败: {e}", text_color="#ef4444")
+
+    def _stop(self):
+        if self.server_process:
+            try:
+                self.server_process.terminate()
+                self.server_process.wait(timeout=5)
+            except Exception:
+                try:
+                    self.server_process.kill()
+                except Exception:
+                    pass
+        self.server_running = False
+        self.server_process = None
+        self._refresh()
 
     def _monitor(self):
-        global server_process, server_running
-        if server_process:
-            server_process.wait()
-        server_running = False
-        server_process = None
+        if self.server_process:
+            self.server_process.wait()
+        self.server_running = False
+        self.server_process = None
+        self.after(0, self._refresh)
 
-    def stop_server(self):
-        global server_process, server_running
-        if server_process:
-            server_process.terminate()
-            try:
-                server_process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                server_process.kill()
-        server_running = False
-        server_process = None
+    def _refresh(self):
+        port = get_port()
+        api_key = get_api_key()
+        if self.server_running:
+            self.status_label.configure(text="● 服务运行中", text_color="#22c55e")
+            self.btn_start.configure(state="disabled")
+            self.btn_stop.configure(state="normal")
+            self.url_label.configure(text=f"http://localhost:{port}")
+        else:
+            self.status_label.configure(text="○ 服务已停止", text_color="#6b7280")
+            self.btn_start.configure(state="normal")
+            self.btn_stop.configure(state="disabled")
+            self.url_label.configure(text="--")
+        self.key_label.configure(text=api_key[:12] + "..." if len(api_key) > 12 else api_key)
+        try:
+            import psutil
+            cpu = psutil.cpu_percent(interval=0.1)
+            mem = psutil.virtual_memory()
+            cc = sum(1 for p in psutil.process_iter(["name"]) if "claude" in (p.info["name"] or "").lower())
+            self.cpu_label.configure(text=f"CPU: {cpu:.1f}%")
+            self.cpu_bar.set(cpu / 100)
+            color = "#22c55e" if cpu < 60 else "#f59e0b" if cpu < 85 else "#ef4444"
+            self.cpu_bar.configure(progress_color=color)
+            self.mem_label.configure(text=f"内存: {mem.percent:.1f}% ({mem.used // 1024**3}GB / {mem.total // 1024**3}GB)")
+            self.mem_bar.set(mem.percent / 100)
+            color = "#22c55e" if mem.percent < 60 else "#f59e0b" if mem.percent < 85 else "#ef4444"
+            self.mem_bar.configure(progress_color=color)
+            self.cc_label.configure(text=f"CC 进程: {cc} 个")
+        except ImportError:
+            pass
+        try:
+            log_dir = PROJECT_DIR / "logs"
+            log_files = sorted(log_dir.glob("cc_*.log"), reverse=True) if log_dir.exists() else []
+            if log_files:
+                with open(log_files[0], "r", encoding="utf-8", errors="replace") as f:
+                    lines = f.readlines()[-20:]
+                self.log_box.configure(state="normal")
+                self.log_box.delete("0.0", "end")
+                self.log_box.insert("0.0", "".join(lines))
+                self.log_box.configure(state="disabled")
+        except Exception:
+            pass
+        if self.server_running:
+            self.after(3000, self._refresh)
 
-    def get_status(self):
-        return {"running": server_running, "port": get_port(), "api_key": get_api_key()}
-
-    def get_system(self):
-        return get_system_info()
-
-    def get_logs(self):
-        return get_recent_logs(30)
-
-    def open_dashboard(self):
-        webbrowser.open(f"http://localhost:{get_port()}")
-
-    def open_tunnel(self):
-        subprocess.Popen(
-            ["cloudflared", "tunnel", "--url", f"http://localhost:{get_port()}"],
-            cwd=str(PROJECT_DIR),
-        )
-
-
-def main():
-    api = PanelAPI()
-    window = webview.create_window(
-        "CC Remote Dashboard",
-        html=PANEL_HTML,
-        js_api=api,
-        width=560, height=720,
-        resizable=True,
-        background_color="#0a0e1a",
-    )
-    webview.start(debug=False)
+    def _copy_key(self):
+        try:
+            import pyperclip
+            pyperclip.copy(get_api_key())
+        except ImportError:
+            import tkinter.simpledialog as sd
+            # Fallback: select-all in key label
+            pass
 
 
 if __name__ == "__main__":
-    main()
+    app = Panel()
+    app.mainloop()
