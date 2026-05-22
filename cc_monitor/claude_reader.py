@@ -5,7 +5,7 @@ from pathlib import Path
 
 class ClaudeReader:
     def __init__(self, claude_home=None):
-        if claude_home is None:
+        if not claude_home:
             claude_home = os.path.join(str(Path.home()), ".claude")
         self.claude_home = Path(claude_home)
         self.projects_dir = self.claude_home / "projects"
