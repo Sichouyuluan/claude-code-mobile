@@ -1,0 +1,95 @@
+"""认证路由 — 登录/登出/session cookie 管理"""
+import hmac
+import hashlib
+import time
+import base64
+import secrets
+
+from fastapi import APIRouter, Request, HTTPException
+from fastapi.responses import JSONResponse, RedirectResponse
+from pydantic import BaseModel
+
+from cc_monitor.state import app_state
+from cc_monitor.config import get_config
+
+router = APIRouter()
+
+COOKIE_NAME = "cc_session"
+COOKIE_DAYS = 30
+
+
+def _sign(value: str, secret: str) -> str:
+    return hmac.new(secret.encode(), value.encode(), hashlib.sha256).hexdigest()
+
+
+def create_session_cookie(api_key: str) -> str:
+    prefix = api_key[:8]
+    ts = str(int(time.time()))
+    sig = _sign(f"{prefix}|{ts}", api_key)
+    raw = f"{prefix}|{ts}|{sig}"
+    return base64.b64encode(raw.encode()).decode()
+
+
+def verify_session_cookie(cookie_value: str, api_key: str) -> bool:
+    try:
+        raw = base64.b64decode(cookie_value).decode()
+        parts = raw.split("|")
+        if len(parts) != 3:
+            return False
+        prefix, ts_str, sig = parts
+        if not hmac.compare_digest(sig, _sign(f"{prefix}|{ts_str}", api_key)):
+            return False
+        ts = int(ts_str)
+        if time.time() - ts > COOKIE_DAYS * 86400:
+            return False
+        return hmac.compare_digest(prefix, api_key[:8])
+    except Exception:
+        return False
+
+
+def check_auth(request: Request) -> bool:
+    if not get_config("require_api_key", True):
+        return True
+    cookie = request.cookies.get(COOKIE_NAME)
+    if cookie and verify_session_cookie(cookie, app_state.api_key):
+        return True
+    auth = request.headers.get("authorization", "")
+    if auth.startswith("Bearer "):
+        token = auth[7:].strip()
+        return hmac.compare_digest(token, app_state.api_key)
+    return False
+
+
+def require_auth(request: Request):
+    if not check_auth(request):
+        raise HTTPException(status_code=401, detail="未认证")
+
+
+class LoginRequest(BaseModel):
+    api_key: str
+
+
+@router.post("/api/auth/login")
+async def login(req: LoginRequest):
+    if not hmac.compare_digest(req.api_key.strip(), app_state.api_key):
+        raise HTTPException(status_code=403, detail="API Key 无效")
+    cookie_val = create_session_cookie(app_state.api_key)
+    resp = JSONResponse({"success": True, "message": "登录成功"})
+    resp.set_cookie(
+        COOKIE_NAME, cookie_val,
+        max_age=COOKIE_DAYS * 86400,
+        httponly=True, samesite="strict"
+    )
+    return resp
+
+
+@router.post("/api/auth/logout")
+async def logout():
+    resp = JSONResponse({"success": True})
+    resp.delete_cookie(COOKIE_NAME)
+    return resp
+
+
+@router.get("/api/auth/check")
+async def auth_check(request: Request):
+    return {"authenticated": check_auth(request)}
