@@ -1,5 +1,6 @@
 """CC Data Reader"""
 import json, os, time
+from collections import deque
 from pathlib import Path
 
 
@@ -111,10 +112,9 @@ class ClaudeReader:
             return []
         try:
             with open(p, "r", encoding="utf-8", errors="replace") as f:
-                lines = f.readlines()
+                lines = list(deque(f, maxlen=last_n))
         except Exception:
             return []
-        lines = lines[-last_n:] if len(lines) > last_n else lines
         return self._parse(lines)
 
     def read_full_conversation(self, project_hash, session_id):
@@ -131,7 +131,7 @@ class ClaudeReader:
     def get_system_info(self):
         try:
             import psutil
-            cpu = psutil.cpu_percent(interval=0.5)
+            cpu = psutil.cpu_percent(interval=0)
             mem = psutil.virtual_memory()
             cc_procs, vscode_count = [], 0
             for proc in psutil.process_iter(["pid", "name", "memory_info", "exe"]):

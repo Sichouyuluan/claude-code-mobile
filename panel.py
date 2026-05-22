@@ -5,6 +5,7 @@ import subprocess
 import threading
 import socket
 import webbrowser
+from collections import deque
 from pathlib import Path
 
 import customtkinter as ctk
@@ -47,14 +48,16 @@ def get_port():
 
 
 def get_lan_ip():
+    s = None
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
+        return s.getsockname()[0]
     except Exception:
         return "127.0.0.1"
+    finally:
+        if s:
+            s.close()
 
 
 class GlassCard(ctk.CTkFrame):
@@ -256,7 +259,6 @@ class Panel(ctk.CTk):
             return
         try:
             # Check if port is already in use
-            import socket
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             result = sock.connect_ex(('127.0.0.1', get_port()))
             sock.close()
@@ -339,7 +341,7 @@ class Panel(ctk.CTk):
             # System info
             try:
                 import psutil
-                cpu = psutil.cpu_percent(interval=0.1)
+                cpu = psutil.cpu_percent(interval=0)
                 mem = psutil.virtual_memory()
                 cc = sum(1 for p in psutil.process_iter(["name"])
                         if "claude" in (p.info["name"] or "").lower())
@@ -365,7 +367,7 @@ class Panel(ctk.CTk):
                     log_files = sorted(log_dir.glob("cc_*.log"), reverse=True)
                     if log_files:
                         with open(log_files[0], "r", encoding="utf-8", errors="replace") as f:
-                            lines = f.readlines()[-15:]
+                            lines = list(deque(f, maxlen=15))
                         self.log_box.configure(state="normal")
                         self.log_box.delete("0.0", "end")
                         self.log_box.insert("0.0", "".join(lines))
