@@ -661,7 +661,13 @@ a:hover { text-decoration: underline; }
   align-self: flex-end; max-width: 85%; width: fit-content;
 }
 .message-group.assistant {
+  display: flex; align-items: flex-start; gap: 8px;
   width: 100%; max-width: 85%;
+}
+.message-group.assistant .group-content { flex: 1; min-width: 0; }
+.message-group.assistant .group-timestamp {
+  flex-shrink: 0; margin-top: 4px; padding: 0;
+  white-space: nowrap; font-size: 11px; color: var(--text-muted);
 }
 @keyframes msgIn { from { opacity: 0; transform: translateY(8px); } }
 /* User group bubble — glass */
@@ -839,6 +845,32 @@ a:hover { text-decoration: underline; }
   border-color: var(--glass-border-hover);
   transform: translateY(-1px);
 }
+/* Tool call collapsible */
+.tool-call-block {
+  margin: 4px 0; border-radius: 6px;
+  border: 1px solid var(--glass-border); overflow: hidden;
+  background: rgba(255,255,255,0.02);
+}
+.tool-call-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 10px; cursor: pointer;
+  font-size: 12px; color: var(--text-secondary);
+  user-select: none; transition: all 0.2s ease;
+}
+.tool-call-header:hover { background: var(--glass-bg-hover); }
+.tool-call-header .arrow { transition: transform 0.2s; font-size: 10px; }
+.tool-call-header.open .arrow { transform: rotate(90deg); }
+.tool-call-summary {
+  margin-left: auto; font-size: 11px; color: var(--text-muted);
+  max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tool-call-content {
+  display: none; padding: 8px 10px;
+  font-size: 12px; color: var(--text-muted);
+  background: rgba(0,0,0,0.15); max-height: 200px; overflow-y: auto;
+}
+.tool-call-content.open { display: block; }
+.tool-call-content pre { margin: 0; white-space: pre-wrap; word-break: break-all; font-size: 11px; }
 /* Tool result collapsible — glass */
 .tool-result-block {
   margin: 6px 0; border-radius: 8px;
@@ -1853,8 +1885,8 @@ function groupMessages(messages) {
   const groups = [];
   let current = null;
   for (const msg of messages) {
-    // Tool result user messages get merged into the preceding assistant group
-    if (msg.type === 'user' && msg.tool_uses && msg.tool_uses.length) {
+    // User messages with tool_results get merged into the preceding assistant group
+    if (msg.type === 'user' && msg.tool_results && msg.tool_results.length) {
       if (current && current.type === 'assistant') {
         current.messages.push(msg);
       } else {
@@ -1932,24 +1964,32 @@ function renderAssistantGroup(group) {
       content += renderMarkdown(msg.text);
       hasContent = true;
     }
-    // Tool calls
+    // Tool calls — collapsible with details
     if (msg.tool_uses && msg.tool_uses.length) {
       msg.tool_uses.forEach(t => {
-        const name = typeof t === 'string' ? t : (t.name || t.tool || '工具');
+        const name = typeof t === 'string' ? t : (t.name || '工具');
         const icon = toolIcon(name);
-        content += '<span class="tool-call-badge">' + icon + ' ' + escHtml(name) + '</span> ';
+        const input = t.input || {};
+        const inputSummary = Object.keys(input).length > 0
+          ? escHtml(JSON.stringify(input).slice(0, 120) + (JSON.stringify(input).length > 120 ? '...' : ''))
+          : '';
+        content += '<div class="tool-call-block">' +
+          '<div class="tool-call-header" onclick="toggleCollapsible(this)">' +
+          '<span class="arrow">&#9654;</span> ' + icon + ' ' + escHtml(name) +
+          (inputSummary ? '<span class="tool-call-summary">' + inputSummary + '</span>' : '') +
+          '</div>' +
+          '<div class="tool-call-content"><pre>' + escHtml(JSON.stringify(input, null, 2)) + '</pre></div>' +
+          '</div>';
       });
       hasContent = true;
     }
-    // Tool results
+    // Tool results (from user messages merged into this group)
     if (msg.tool_results && msg.tool_results.length) {
       msg.tool_results.forEach(r => {
-        const name = r.tool_name || r.name || '结果';
-        const resultContent = r.content || r.output || (typeof r === 'string' ? r : '');
-        const resultId = 'toolres-' + Math.random().toString(36).slice(2, 8);
+        const resultContent = r.content || '';
         content += '<div class="tool-result-block">' +
           '<div class="tool-result-header" onclick="toggleCollapsible(this)">' +
-          '<span class="arrow">&#9654;</span> ' + escHtml(name) + ' 结果' +
+          '<span class="arrow">&#9654;</span> 工具结果' +
           '<button class="code-copy-btn" onclick="event.stopPropagation();copyCodeBlock(this)" style="margin-left:auto;">复制</button>' +
           '</div>' +
           '<div class="tool-result-content"><pre>' + escHtml(resultContent) + '</pre></div>' +
@@ -2317,8 +2357,8 @@ function handleSSEMessage(data) {
     msg.stop_reason = data.stop_reason || '';
     if (data.thinking) msg.thinking = data.thinking;
   }
-  if (data.tool_uses && data.type === 'user') {
-    msg.tool_uses = data.tool_uses;
+  if (data.type === 'user') {
+    if (data.tool_results) msg.tool_results = data.tool_results;
   }
 
   // Append to messages array

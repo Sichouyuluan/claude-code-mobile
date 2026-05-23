@@ -324,22 +324,42 @@ class ClaudeReader:
             if t not in ("user", "assistant"): continue
             msg = obj.get("message", {})
             content = msg.get("content", [])
-            text_parts, tools = [], []
+            text_parts, tool_calls, tool_results = [], [], []
             for b in content:
                 if isinstance(b, dict):
-                    if b.get("type") == "text": text_parts.append(b.get("text", ""))
-                    elif b.get("type") == "tool_use": tools.append(b.get("name", "unknown"))
-                elif isinstance(b, str): text_parts.append(b)
+                    btype = b.get("type", "")
+                    if btype == "text":
+                        text_parts.append(b.get("text", ""))
+                    elif btype == "tool_use":
+                        tool_calls.append({
+                            "id": b.get("id", ""),
+                            "name": b.get("name", "unknown"),
+                            "input": b.get("input", {}),
+                        })
+                    elif btype == "tool_result":
+                        result_content = b.get("content", "")
+                        if isinstance(result_content, list):
+                            result_content = "\n".join(
+                                c.get("text", "") for c in result_content if isinstance(c, dict)
+                            )
+                        tool_results.append({
+                            "tool_use_id": b.get("tool_use_id", ""),
+                            "content": str(result_content)[:2000],
+                        })
+                elif isinstance(b, str):
+                    text_parts.append(b)
             parsed = {"type": t, "text": "\n".join(text_parts),
                       "timestamp": obj.get("timestamp", ""), "uuid": obj.get("uuid", "")}
             if t == "assistant":
                 parsed["model"] = msg.get("model", "")
-                parsed["tool_uses"] = tools
+                parsed["tool_uses"] = tool_calls
                 parsed["tokens"] = msg.get("usage", {})
-            # Detect permission dialog in user messages
-            if t == "user" and self._detect_permission(content, text_parts):
-                parsed["is_permission_prompt"] = True
-                parsed["permission_tool"] = tools[0] if tools else ""
+            if t == "user":
+                if tool_results:
+                    parsed["tool_results"] = tool_results
+                if self._detect_permission(content, text_parts):
+                    parsed["is_permission_prompt"] = True
+                    parsed["permission_tool"] = tool_calls[0]["name"] if tool_calls else ""
             messages.append(parsed)
         return messages
 

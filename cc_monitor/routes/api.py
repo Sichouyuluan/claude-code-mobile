@@ -310,7 +310,8 @@ async def stream_session(project_hash: str, session_id: str, request: Request):
                 msg = obj.get("message", {})
                 content = msg.get("content", [])
                 text_parts = []
-                tool_uses = []
+                tool_calls = []
+                tool_results = []
                 thinking_text = ""
                 for b in content:
                     if not isinstance(b, dict):
@@ -321,7 +322,19 @@ async def stream_session(project_hash: str, session_id: str, request: Request):
                     if btype == "text":
                         text_parts.append(b.get("text", ""))
                     elif btype == "tool_use":
-                        tool_uses.append(b.get("name", "unknown"))
+                        tool_calls.append({
+                            "id": b.get("id", ""),
+                            "name": b.get("name", "unknown"),
+                            "input": b.get("input", {}),
+                        })
+                    elif btype == "tool_result":
+                        rc = b.get("content", "")
+                        if isinstance(rc, list):
+                            rc = "\n".join(c.get("text", "") for c in rc if isinstance(c, dict))
+                        tool_results.append({
+                            "tool_use_id": b.get("tool_use_id", ""),
+                            "content": str(rc)[:2000],
+                        })
                     elif btype == "thinking":
                         thinking_text = b.get("thinking", "")
                 event_data = {
@@ -332,12 +345,12 @@ async def stream_session(project_hash: str, session_id: str, request: Request):
                 }
                 if t == "assistant":
                     event_data["model"] = msg.get("model", "")
-                    event_data["tool_uses"] = tool_uses
+                    event_data["tool_uses"] = tool_calls
                     event_data["stop_reason"] = msg.get("stop_reason", "")
                     if thinking_text:
                         event_data["thinking"] = thinking_text
-                if t == "user" and tool_uses:
-                    event_data["tool_uses"] = tool_uses
+                if t == "user" and tool_results:
+                    event_data["tool_results"] = tool_results
                 yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
