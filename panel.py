@@ -158,6 +158,8 @@ class Panel(ctk.CTk):
         self.key_label = ctk.CTkLabel(key_row, text="--",
                                        font=ctk.CTkFont(family="Consolas", size=10), text_color=GLOW)
         self.key_label.pack(side="left")
+        GlowButton(key_row, text="修改", width=45, height=24, glow_color=YELLOW,
+                   font=ctk.CTkFont(size=9), command=self._change_key).pack(side="right", padx=(0, 3))
         GlowButton(key_row, text="复制", width=45, height=24, glow_color="#374151",
                    font=ctk.CTkFont(size=9), command=self._copy_key).pack(side="right")
 
@@ -356,6 +358,49 @@ class Panel(ctk.CTk):
             pyperclip.copy(get_api_key())
         except ImportError:
             self._clipboard_paste(get_api_key())
+
+    def _change_key(self):
+        import tkinter.simpledialog as sd
+        current_key = sd.askstring("修改密钥", "当前密钥:", show="*", parent=self)
+        if not current_key:
+            return
+        new_key = sd.askstring("修改密钥", "新密钥（至少8位）:", show="*", parent=self)
+        if not new_key or len(new_key) < 8:
+            return
+        confirm = sd.askstring("修改密钥", "确认新密钥:", show="*", parent=self)
+        if confirm != new_key:
+            try:
+                from tkinter import messagebox
+                messagebox.showerror("错误", "两次输入不一致", parent=self)
+            except Exception:
+                pass
+            return
+        # Call API
+        import urllib.request
+        import json
+        try:
+            port = get_port()
+            url = f"http://localhost:{port}/api/auth/change-key"
+            data = json.dumps({"current_key": current_key, "new_key": new_key}).encode()
+            req = urllib.request.Request(url, data=data, headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {current_key}"
+            })
+            resp = urllib.request.urlopen(req)
+            result = json.loads(resp.read())
+            if result.get("success"):
+                self._refresh()
+                try:
+                    from tkinter import messagebox
+                    messagebox.showinfo("成功", "密钥已更新", parent=self)
+                except Exception:
+                    pass
+        except Exception as e:
+            try:
+                from tkinter import messagebox
+                messagebox.showerror("失败", str(e), parent=self)
+            except Exception:
+                pass
 
     def _copy_url(self, attr):
         try:
