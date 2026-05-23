@@ -357,9 +357,11 @@ class Panel(ctk.CTk):
                 self.local_url.configure(text="--")
                 self.lan_url.configure(text="--")
 
-            display_key = api_key[:16] + "..." if len(api_key) > 16 else api_key
-            self.key_entry.delete(0, "end")
-            self.key_entry.insert(0, api_key)
+            # Only update entry if it shows default or current key (not user-edited)
+            current_val = self.key_entry.get()
+            if current_val == "--" or current_val == get_api_key():
+                self.key_entry.delete(0, "end")
+                self.key_entry.insert(0, api_key)
 
             # System info
             try:
