@@ -336,11 +336,14 @@ class ClaudeReader:
             msg = obj.get("message", {})
             content = msg.get("content", [])
             text_parts, tool_calls, tool_results = [], [], []
+            thinking_text = ""
             for b in content:
                 if isinstance(b, dict):
                     btype = b.get("type", "")
                     if btype == "text":
                         text_parts.append(b.get("text", ""))
+                    elif btype == "thinking":
+                        thinking_text = b.get("thinking", "")
                     elif btype == "tool_use":
                         tool_calls.append({
                             "id": b.get("id", ""),
@@ -365,6 +368,8 @@ class ClaudeReader:
                 parsed["model"] = msg.get("model", "")
                 parsed["tool_uses"] = tool_calls
                 parsed["tokens"] = msg.get("usage", {})
+                if thinking_text:
+                    parsed["thinking"] = thinking_text
             if t == "user":
                 if tool_results:
                     parsed["tool_results"] = tool_results

@@ -1856,6 +1856,9 @@ function renderMessages() {
     state._roundsInit = true;
   }
   let html = '';
+  // Debug: show round stats at top
+  const expandedCount = Object.values(state.expandedRounds).filter(Boolean).length;
+  html += '<div style="padding:8px 12px;font-size:11px;color:var(--text-muted);background:rgba(255,255,255,0.03);border-bottom:1px solid var(--glass-border);">轮次: ' + rounds.length + ' | 展开: ' + expandedCount + ' | 消息: ' + state.messages.length + '</div>';
   rounds.forEach((round, idx) => {
     html += renderRound(round, idx, rounds.length);
   });
@@ -1923,6 +1926,10 @@ function renderRound(round, idx, totalRounds) {
   if (expanded) {
     const groups = groupMessages(round.messages);
     let inner = groups.map(renderGroup).join('');
+    // Debug: show group info if inner is empty
+    if (!inner || inner.trim().length < 10) {
+      inner = '<div style="padding:8px;font-size:11px;color:var(--text-muted);">调试: ' + round.messages.length + '条消息, ' + groups.length + '组, inner长度=' + inner.length + ' | 首条: type=' + (round.messages[0]||{}).type + ' text=' + ((round.messages[0]||{}).text||'').length + ' thinking=' + ((round.messages[0]||{}).thinking||'').length + '</div>' + inner;
+    }
     return '<div class="round round-expanded" data-round="' + idx + '">' +
       '<div class="round-header" onclick="toggleRound(' + idx + ')">' +
       '<span class="round-arrow">&#9660;</span>' +
