@@ -34,9 +34,16 @@ YELLOW = "#f59e0b"
 
 def get_api_key():
     try:
-        return API_KEY_FILE.read_text().strip()
+        key = API_KEY_FILE.read_text().strip()
+        if key:
+            return key
     except Exception:
-        return "未生成"
+        pass
+    # Auto-generate if file doesn't exist or is empty
+    import secrets
+    key = secrets.token_urlsafe(32)
+    API_KEY_FILE.write_text(key)
+    return key
 
 
 def get_port():
