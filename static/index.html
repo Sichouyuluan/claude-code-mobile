@@ -1765,7 +1765,7 @@ async function loadMoreMessages() {
       const container = document.getElementById('messages-container');
       const prevHeight = container.scrollHeight;
       state.messages = [...newMessages, ...state.messages];
-      if (newMessages.length < state.messageLimit) {
+      if (newMessages.length < loadCount) {
         state.hasMoreMessages = false;
       }
       renderMessages();
