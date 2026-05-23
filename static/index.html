@@ -1740,7 +1740,9 @@ async function loadMessages() {
   try {
     const data = await apiFetch('/api/projects/' + state.currentProject.hash + '/sessions/' + state.currentSession.session_id + '/messages?last_n=' + state.messageLimit);
     state.messages = data.messages || [];
-    state.hasMoreMessages = state.messages.length >= state.messageLimit;
+    // Always assume there are more messages until loadMore returns 0
+    state.hasMoreMessages = state.messages.length > 0;
+    console.log('[CCM] 初始加载: 收到', state.messages.length, '条消息, 还有更多:', state.hasMoreMessages);
     state.autoScroll = true;
     renderMessages();
     // Start SSE stream for real-time updates
@@ -1750,17 +1752,23 @@ async function loadMessages() {
   }
 }
 async function loadMoreMessages() {
+  console.log('[CCM] 加载更多消息被调用, 加载中:', state.loadingMore, '还有更多:', state.hasMoreMessages, '当前消息数:', state.messages.length);
   if (state.loadingMore || !state.hasMoreMessages) return;
   if (!state.messages.length) return;
   state.loadingMore = true;
+  // Show loading indicator
+  const loadLink = document.querySelector('.load-more-link');
+  if (loadLink) loadLink.textContent = '加载中...';
   try {
     const loadCount = 5;
     const url = '/api/projects/' + state.currentProject.hash + '/sessions/' + state.currentSession.session_id +
       '/messages?last_n=' + loadCount + '&offset=' + state.messages.length;
     const data = await apiFetch(url);
     const newMessages = data.messages || [];
+    console.log('[CCM] 加载更多API返回', newMessages.length, '条消息');
     if (newMessages.length === 0) {
       state.hasMoreMessages = false;
+      showToast('已到最早的消息', 'info');
     } else {
       const container = document.getElementById('messages-container');
       const prevHeight = container.scrollHeight;
@@ -1768,7 +1776,10 @@ async function loadMoreMessages() {
       if (newMessages.length < loadCount) {
         state.hasMoreMessages = false;
       }
+      // Disable auto-scroll before rendering to preserve scroll position
+      state.autoScroll = false;
       renderMessages();
+      // Restore scroll position so user doesn't lose their place
       container.scrollTop = container.scrollHeight - prevHeight;
     }
   } catch (err) {
@@ -2047,11 +2058,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const distFromBottom = mc.scrollHeight - mc.scrollTop - mc.clientHeight;
       state.autoScroll = distFromBottom < 80;
       // Auto-load more when scrolled near top
-      if (mc.scrollTop < 50 && state.currentView === 'conversation' &&
+      if (mc.scrollTop < 100 && state.currentView === 'conversation' &&
           !state.loadingMore && state.hasMoreMessages && state.messages.length > 0) {
+        console.log('[CCM] 滚动到顶部触发，scrollTop:', mc.scrollTop, '还有更多:', state.hasMoreMessages);
         loadMoreMessages();
       }
     });
+    console.log('[CCM] 滚动监听已绑定到消息容器');
+  } else {
+    console.log('[CCM] 页面加载时未找到消息容器');
   }
 });
 function autoResize(el) {
