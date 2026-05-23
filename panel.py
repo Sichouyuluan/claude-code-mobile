@@ -8,6 +8,7 @@ import webbrowser
 from collections import deque
 from pathlib import Path
 
+import tkinter as tk
 import customtkinter as ctk
 
 ctk.set_appearance_mode("dark")
@@ -83,14 +84,23 @@ class Panel(ctk.CTk):
         self.geometry("750x480")
         self.minsize(600, 400)
         self.configure(fg_color=BG)
-        # Set window icon
+        # Set window icon (try multiple methods for best quality)
+        import os
         try:
-            icon_path = str(PROJECT_DIR / "static" / "icon.ico")
-            import os
-            if os.path.exists(icon_path):
-                self.iconbitmap(icon_path)
+            # Method 1: iconphoto with PNG (best quality on modern Windows)
+            png_path = str(PROJECT_DIR / "static" / "icon.png")
+            if os.path.exists(png_path):
+                icon_img = tk.PhotoImage(file=png_path)
+                self.iconphoto(True, icon_img)
+                self._icon_img = icon_img  # prevent GC
         except Exception:
-            pass
+            try:
+                # Method 2: iconbitmap with ICO (fallback)
+                ico_path = str(PROJECT_DIR / "static" / "icon.ico")
+                if os.path.exists(ico_path):
+                    self.iconbitmap(ico_path)
+            except Exception:
+                pass
         self.server_process = None
         self.server_running = False
         # Kill subprocess when window closes
