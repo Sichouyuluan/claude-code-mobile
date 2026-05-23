@@ -862,6 +862,22 @@ a:hover { text-decoration: underline; }
   0%, 100% { opacity: 0.3; transform: scale(0.8); }
   50% { opacity: 1; transform: scale(1.2); }
 }
+.permission-prompt {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 18px; margin: 8px 0;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 10px;
+  backdrop-filter: blur(8px);
+}
+.permission-icon {
+  font-size: 24px; color: var(--warning);
+  animation: busyPulse 1.4s ease-in-out infinite;
+}
+.permission-text {
+  font-size: 13px; color: var(--text);
+  line-height: 1.5;
+}
 /* Load more */
 .load-more-link {
   text-align: center; padding: 12px;
@@ -1757,6 +1773,18 @@ function renderAssistantGroup(group) {
   let content = '';
   let hasContent = false;
   for (const msg of group.messages) {
+    // Permission prompt
+    if (msg.is_permission_prompt) {
+      content += '<div class="permission-prompt">' +
+        '<div class="permission-icon">&#9888;</div>' +
+        '<div class="permission-text">' +
+        '<strong>CC 正在请求权限</strong>' +
+        (msg.permission_tool ? '<br>工具: ' + escHtml(msg.permission_tool) : '') +
+        '<br><span style="color:var(--text-muted);font-size:12px;">请在 VS Code 中操作</span>' +
+        '</div></div>';
+      hasContent = true;
+      continue;
+    }
     // Thinking block
     if (msg.thinking) {
       const thinkId = 'think-' + Math.random().toString(36).slice(2, 8);
