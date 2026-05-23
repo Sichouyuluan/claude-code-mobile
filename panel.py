@@ -158,15 +158,18 @@ class Panel(ctk.CTk):
 
         key_frame = ctk.CTkFrame(card2, fg_color="#0a0f1e", corner_radius=8)
         key_frame.pack(fill="x", padx=8, pady=4)
+        ctk.CTkLabel(key_frame, text="密钥", font=ctk.CTkFont(size=9),
+                     text_color=TEXT3).pack(anchor="w", padx=8, pady=(6, 2))
         key_row = ctk.CTkFrame(key_frame, fg_color="transparent")
-        key_row.pack(fill="x", padx=8, pady=(6, 6))
-        self.key_label = ctk.CTkLabel(key_row, text="--",
-                                       font=ctk.CTkFont(family="Consolas", size=10), text_color=GLOW)
-        self.key_label.pack(side="left")
-        GlowButton(key_row, text="修改", width=45, height=24, glow_color=YELLOW,
-                   font=ctk.CTkFont(size=9), command=self._change_key).pack(side="right", padx=(0, 3))
-        GlowButton(key_row, text="复制", width=45, height=24, glow_color="#374151",
-                   font=ctk.CTkFont(size=9), command=self._copy_key).pack(side="right")
+        key_row.pack(fill="x", padx=8, pady=(0, 6))
+        self.key_entry = ctk.CTkEntry(key_row, font=ctk.CTkFont(family="Consolas", size=10),
+                                       fg_color="#0a0f1e", border_color=CARD_BORDER,
+                                       text_color=GLOW, height=28, show="*")
+        self.key_entry.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        GlowButton(key_row, text="保存", width=45, height=26, glow_color=GREEN,
+                   font=ctk.CTkFont(size=9), command=self._save_key).pack(side="right")
+        GlowButton(key_row, text="复制", width=45, height=26, glow_color="#374151",
+                   font=ctk.CTkFont(size=9), command=self._copy_key).pack(side="right", padx=(0, 3))
 
         action_frame = ctk.CTkFrame(card2, fg_color="transparent")
         action_frame.pack(fill="x", padx=8, pady=(2, 8))
@@ -355,7 +358,8 @@ class Panel(ctk.CTk):
                 self.lan_url.configure(text="--")
 
             display_key = api_key[:16] + "..." if len(api_key) > 16 else api_key
-            self.key_label.configure(text=display_key)
+            self.key_entry.delete(0, "end")
+            self.key_entry.insert(0, api_key)
 
             # System info
             try:
@@ -404,54 +408,43 @@ class Panel(ctk.CTk):
         webbrowser.open(f"http://localhost:{port}")
 
     def _copy_key(self):
+        key = self.key_entry.get().strip() or get_api_key()
         try:
             import pyperclip
-            pyperclip.copy(get_api_key())
+            pyperclip.copy(key)
         except ImportError:
-            self._clipboard_paste(get_api_key())
+            self._clipboard_paste(key)
 
-    def _change_key(self):
-        import tkinter.simpledialog as sd
-        current_key = sd.askstring("修改密钥", "当前密钥:", show="*", parent=self)
-        if not current_key:
+    def _save_key(self):
+        """Save new key from the entry field"""
+        new_key = self.key_entry.get().strip()
+        if not new_key:
             return
-        new_key = sd.askstring("修改密钥", "新密钥（至少8位）:", show="*", parent=self)
-        if not new_key or len(new_key) < 8:
+        if len(new_key) < 8:
+            self.status_label.configure(text="密钥至少8位", text_color=YELLOW)
+            self.after(2000, lambda: self._refresh())
             return
-        confirm = sd.askstring("修改密钥", "确认新密钥:", show="*", parent=self)
-        if confirm != new_key:
-            try:
-                from tkinter import messagebox
-                messagebox.showerror("错误", "两次输入不一致", parent=self)
-            except Exception:
-                pass
-            return
+        # Get current key for API auth
+        current_key = get_api_key()
         # Call API
         import urllib.request
-        import json
+        import json as _json
         try:
             port = get_port()
             url = f"http://localhost:{port}/api/auth/change-key"
-            data = json.dumps({"current_key": current_key, "new_key": new_key}).encode()
+            data = _json.dumps({"current_key": current_key, "new_key": new_key}).encode()
             req = urllib.request.Request(url, data=data, headers={
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {current_key}"
             })
             resp = urllib.request.urlopen(req)
-            result = json.loads(resp.read())
+            result = _json.loads(resp.read())
             if result.get("success"):
-                self._refresh()
-                try:
-                    from tkinter import messagebox
-                    messagebox.showinfo("成功", "密钥已更新", parent=self)
-                except Exception:
-                    pass
+                self.status_label.configure(text="密钥已更新", text_color=GREEN)
+                self.after(2000, lambda: self._refresh())
         except Exception as e:
-            try:
-                from tkinter import messagebox
-                messagebox.showerror("失败", str(e), parent=self)
-            except Exception:
-                pass
+            self.status_label.configure(text=f"修改失败: {e}", text_color=RED)
+            self.after(3000, lambda: self._refresh())
 
     def _copy_url(self, attr):
         try:
