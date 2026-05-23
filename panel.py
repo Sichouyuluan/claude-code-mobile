@@ -173,10 +173,12 @@ class Panel(ctk.CTk):
                                        fg_color="#0a0f1e", border_color=CARD_BORDER,
                                        text_color=GLOW, height=28, show="*")
         self.key_entry.pack(side="left", fill="x", expand=True, padx=(0, 4))
-        GlowButton(key_row, text="保存", width=45, height=26, glow_color=GREEN,
-                   font=ctk.CTkFont(size=9), command=self._save_key).pack(side="right")
+        self._key_loaded = False  # Track if key has been loaded into entry
+        self._key_saving = False  # Guard against re-entrant saves
+        self.key_entry.bind("<KeyRelease>", self._on_key_change)
+        self.key_entry.bind("<FocusOut>", self._on_key_change)
         GlowButton(key_row, text="复制", width=45, height=26, glow_color="#374151",
-                   font=ctk.CTkFont(size=9), command=self._copy_key).pack(side="right", padx=(0, 3))
+                   font=ctk.CTkFont(size=9), command=self._copy_key).pack(side="right")
 
         action_frame = ctk.CTkFrame(card2, fg_color="transparent")
         action_frame.pack(fill="x", padx=8, pady=(2, 8))
@@ -369,11 +371,11 @@ class Panel(ctk.CTk):
                 self.local_url.configure(text="--")
                 self.lan_url.configure(text="--")
 
-            # Only update entry if it's empty, shows placeholder, or matches current key
-            current_val = self.key_entry.get()
-            if not current_val or current_val == "--" or current_val == api_key:
+            # Load key into entry only once on first refresh
+            if not self._key_loaded:
                 self.key_entry.delete(0, "end")
                 self.key_entry.insert(0, api_key)
+                self._key_loaded = True
 
             # System info
             try:
@@ -429,22 +431,22 @@ class Panel(ctk.CTk):
         except ImportError:
             self._clipboard_paste(key)
 
-    def _save_key(self):
-        """Save new key from the entry field, sync with running server if possible."""
-        import urllib.request
-        import json
+    def _on_key_change(self, event=None):
+        """Auto-save key when user edits the entry field."""
+        if self._key_saving:
+            return
         new_key = self.key_entry.get().strip()
-        if not new_key:
+        if not new_key or len(new_key) < 8:
             return
-        if len(new_key) < 8:
-            self.status_label.configure(text="密钥至少8位", text_color=YELLOW)
-            self.after(2000, lambda: self._refresh())
+        # Skip if value hasn't changed from what's on disk
+        if new_key == get_api_key():
             return
+        self._key_saving = True
         try:
-            # Read old key before overwriting (needed for server auth)
+            import urllib.request
+            import json
             old_key = get_api_key()
             API_KEY_FILE.write_text(new_key)
-            # Try to sync with running server
             if self.server_running:
                 try:
                     port = get_port()
@@ -459,11 +461,13 @@ class Panel(ctk.CTk):
                     )
                     urllib.request.urlopen(req, timeout=3)
                 except Exception:
-                    pass  # Server may not be running or key mismatch is OK; file is already updated
+                    pass
             self.status_label.configure(text="密钥已更新", text_color=GREEN)
             self.after(2000, lambda: self._refresh())
         except Exception as e:
             self.status_label.configure(text=f"保存失败: {e}", text_color=RED)
+        finally:
+            self._key_saving = False
             self.after(3000, lambda: self._refresh())
 
     def _copy_url(self, attr):
