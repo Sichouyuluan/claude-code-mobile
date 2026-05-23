@@ -218,27 +218,24 @@ class ClaudeReader:
 
     def read_conversation(self, project_hash, session_id, last_n=50, offset=0):
         """Read messages with pagination.
-        offset=0 means latest, offset=N means skip the latest N lines.
-        Returns at most `last_n` parsed messages from the tail after skipping `offset` lines.
+        offset=0 means latest, offset=N means skip the latest N parsed messages.
+        Returns at most `last_n` parsed messages from the tail after skipping `offset` messages.
         """
         p = self.projects_dir / project_hash / f"{session_id}.jsonl"
         if not p.exists():
             return []
         try:
+            with open(p, "r", encoding="utf-8", errors="replace") as f:
+                all_lines = f.readlines()
+            # Parse all messages first, then apply offset/last_n on parsed results
+            all_messages = self._parse(all_lines)
             if offset == 0:
-                # Fast path: only need the tail
-                with open(p, "r", encoding="utf-8", errors="replace") as f:
-                    lines = list(deque(f, maxlen=last_n))
-            else:
-                # Read all lines, then slice: skip `offset` from the end, take `last_n`
-                with open(p, "r", encoding="utf-8", errors="replace") as f:
-                    all_lines = f.readlines()
-                # Remove offset lines from the end, then take last_n
-                trimmed = all_lines[:len(all_lines) - offset] if offset < len(all_lines) else []
-                lines = trimmed[-last_n:] if last_n else trimmed
+                return all_messages[-last_n:] if last_n else all_messages
+            # Skip the last `offset` parsed messages, then take `last_n`
+            trimmed = all_messages[:len(all_messages) - offset] if offset < len(all_messages) else []
+            return trimmed[-last_n:] if last_n else trimmed
         except Exception:
             return []
-        return self._parse(lines)
 
     def read_full_conversation(self, project_hash, session_id):
         p = self.projects_dir / project_hash / f"{session_id}.jsonl"
