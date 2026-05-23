@@ -1,7 +1,9 @@
 """CC Data Reader"""
-import json, os, time
+import json, logging, os, time
 from collections import deque
 from pathlib import Path
+
+logger = logging.getLogger("cc_dashboard")
 
 # Permission-related keywords for detecting CC permission prompts
 _PERM_KEYWORDS = (
@@ -35,6 +37,7 @@ class ClaudeReader:
                 "last_active": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(last_active)) if last_active else None,
             })
         projects.sort(key=lambda p: p["last_active"] or "", reverse=True)
+        logger.info(f"[工作区] 扫描完成: {len(projects)}个项目")
         return projects
 
     def _resolve_path_from_jsonl(self, proj_dir, jsonl_files):
@@ -99,6 +102,8 @@ class ClaudeReader:
             })
         # Sort by started_at descending (most recent first)
         active.sort(key=lambda x: x.get("started_at", 0), reverse=True)
+        running = sum(1 for a in active if a.get("running"))
+        logger.info(f"[活跃会话] 总={len(active)} 运行中={running}")
         return active
 
     def _read_session_json(self, pid):
@@ -227,13 +232,19 @@ class ClaudeReader:
         try:
             with open(p, "r", encoding="utf-8", errors="replace") as f:
                 all_lines = f.readlines()
-            # Parse all messages first, then apply offset/last_n on parsed results
             all_messages = self._parse(all_lines)
+            user_count = sum(1 for m in all_messages if m.get("type") == "user")
+            asst_count = sum(1 for m in all_messages if m.get("type") == "assistant")
+            tool_calls = sum(len(m.get("tool_uses", [])) for m in all_messages)
+            tool_results = sum(len(m.get("tool_results", [])) for m in all_messages)
+            logger.info(f"[消息读取] session={session_id[:8]} JSONL行={len(all_lines)} 解析后={len(all_messages)} 用户={user_count} 助手={asst_count} 工具={tool_calls} 结果={tool_results}")
             if offset == 0:
-                return all_messages[-last_n:] if last_n else all_messages
-            # Skip the last `offset` parsed messages, then take `last_n`
-            trimmed = all_messages[:len(all_messages) - offset] if offset < len(all_messages) else []
-            return trimmed[-last_n:] if last_n else trimmed
+                result = all_messages[-last_n:] if last_n else all_messages
+            else:
+                trimmed = all_messages[:len(all_messages) - offset] if offset < len(all_messages) else []
+                result = trimmed[-last_n:] if last_n else trimmed
+            logger.info(f"[消息返回] 返回={len(result)}条 last_n={last_n} offset={offset}")
+            return result
         except Exception:
             return []
 

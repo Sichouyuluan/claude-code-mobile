@@ -1,8 +1,11 @@
 """认证路由 — 登录/登出/session cookie 管理"""
 import hmac
 import hashlib
+import logging
 import os
 import time
+
+logger = logging.getLogger("cc_dashboard")
 import base64
 import secrets
 
@@ -77,8 +80,10 @@ class LoginRequest(BaseModel):
 @router.post("/api/auth/login")
 async def login(req: LoginRequest):
     if not hmac.compare_digest(req.api_key.strip(), app_state.api_key):
+        logger.warning(f"登录失败: 密钥不匹配")
         raise HTTPException(status_code=403, detail="API Key 无效")
     cookie_val = create_session_cookie(app_state.api_key)
+    logger.info("登录成功")
     resp = JSONResponse({"success": True, "message": "登录成功"})
     resp.set_cookie(
         COOKIE_NAME, cookie_val,

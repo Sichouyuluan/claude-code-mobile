@@ -1,8 +1,12 @@
 """CC Remote Dashboard — FastAPI 入口"""
 import asyncio
+import logging
 import os
 import secrets
 from contextlib import asynccontextmanager
+
+from cc_monitor.logger import setup_logger
+logger = setup_logger("cc_dashboard")
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -59,16 +63,15 @@ async def lifespan(app: FastAPI):
 
     set_guard(ScanGuard(stop_callback=_stop_uvicorn))
     app_state.api_key = _load_or_generate_api_key()
-    print(f"[CC Dashboard] API Key: {app_state.api_key[:4]}...***")
-    print(f"[CC Dashboard] 启动: http://0.0.0.0:{get_config('port', 8001)}")
+    logger.info(f"API Key: {app_state.api_key[:4]}...***")
+    logger.info(f"服务启动: http://0.0.0.0:{get_config('port', 8001)}")
 
-    # Start background cleanup task (Task 1)
     cleanup_task = asyncio.create_task(_cleanup_loop())
 
     yield
 
     cleanup_task.cancel()
-    print("[CC Dashboard] 关闭")
+    logger.info("服务关闭")
 
 
 app = FastAPI(title="CC Remote Dashboard", version="1.0.0", lifespan=lifespan)

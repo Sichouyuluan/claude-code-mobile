@@ -1,8 +1,11 @@
 """中间件 — API Key 认证 + Session Cookie + 限速 + 设备追踪 + 扫描防护"""
+import logging
 import time
 
 from fastapi import Header, Request
 from fastapi.responses import JSONResponse
+
+logger = logging.getLogger("cc_dashboard")
 
 from cc_monitor.config import get_config
 from cc_monitor.guard import get_guard
@@ -36,9 +39,11 @@ async def rate_limit_middleware(request: Request, call_next):
     is_exempt = path in exempt_exact or (is_read and any(path.startswith(p) for p in exempt_prefix))
     if limiter and not is_exempt:
         if limiter.is_banned(client_ip):
+            logger.warning(f"IP封禁: {client_ip} {path}")
             return JSONResponse(status_code=403, content={"error": "你已被暂时封禁"})
         if not limiter.is_allowed(client_ip):
             limiter.record_rejection(client_ip)
+            logger.warning(f"限速触发: {client_ip} {path}")
             return JSONResponse(status_code=429, content={"error": "请求过于频繁"})
 
     if dt and client_ip not in ("127.0.0.1", "::1"):
