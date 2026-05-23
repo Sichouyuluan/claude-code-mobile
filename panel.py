@@ -79,10 +79,18 @@ class GlowButton(ctk.CTkButton):
 class Panel(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("CCM")
+        self.title("CC Remote Dashboard")
         self.geometry("750x480")
         self.minsize(600, 400)
         self.configure(fg_color=BG)
+        # Set window icon
+        try:
+            icon_path = str(PROJECT_DIR / "static" / "icon.ico")
+            import os
+            if os.path.exists(icon_path):
+                self.iconbitmap(icon_path)
+        except Exception:
+            pass
         self.server_process = None
         self.server_running = False
         self._build_ui()
@@ -92,7 +100,7 @@ class Panel(ctk.CTk):
         # Title bar
         title_frame = ctk.CTkFrame(self, fg_color="transparent")
         title_frame.pack(fill="x", padx=20, pady=(12, 0))
-        ctk.CTkLabel(title_frame, text="CCM",
+        ctk.CTkLabel(title_frame, text="CC Remote Dashboard",
                      font=ctk.CTkFont(size=22, weight="bold"),
                      text_color=GLOW).pack(side="left")
         ctk.CTkLabel(title_frame, text="管理面板",
