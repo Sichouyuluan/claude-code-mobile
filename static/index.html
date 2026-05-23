@@ -2,8 +2,8 @@
 <html lang="zh-CN" data-theme="dark">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>CC 远程监控</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>claude-code-mobile</title>
 <style>
 :root {
   --transition: 0.2s ease;
@@ -195,6 +195,7 @@ a:hover { text-decoration: underline; }
   font-size: 13px; font-weight: 500;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.sidebar-item .item-path[title] { cursor: help; }
 .sidebar-item .item-meta {
   font-size: 11px; color: var(--text-muted);
 }
@@ -388,6 +389,7 @@ a:hover { text-decoration: underline; }
 .message-input-area {
   padding: 12px 20px; border-top: 1px solid var(--border);
   background: var(--sidebar-bg);
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
 }
 .input-row {
   display: flex; align-items: flex-end; gap: 8px;
@@ -409,6 +411,23 @@ a:hover { text-decoration: underline; }
 }
 .send-btn:hover { background: var(--accent-hover); }
 .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.image-preview {
+  display: none; padding: 8px 20px; background: var(--sidebar-bg);
+  border-top: 1px solid var(--border);
+}
+.image-preview.active { display: flex; align-items: center; gap: 8px; }
+.image-preview img {
+  max-width: 80px; max-height: 60px; border-radius: 8px;
+  border: 1px solid var(--border); object-fit: cover;
+}
+.image-preview .preview-info {
+  flex: 1; font-size: 12px; color: var(--text-secondary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.image-preview .preview-remove {
+  background: none; border: none; color: var(--error);
+  cursor: pointer; font-size: 16px; padding: 4px;
+}
 .empty-state {
   display: flex; flex-direction: column; align-items: center;
   justify-content: center; height: 100%; padding: 40px;
@@ -470,7 +489,7 @@ a:hover { text-decoration: underline; }
 <div id="login-page">
   <div class="login-card">
     <span class="logo-icon">&#9679;</span>
-    <h1>CC 远程监控</h1>
+    <h1>claude-code-mobile</h1>
     <p class="subtitle">远程监控 Claude Code 工作状态</p>
     <form id="login-form" onsubmit="return handleLogin(event)">
       <div class="input-group">
@@ -565,6 +584,11 @@ a:hover { text-decoration: underline; }
       <!-- Conversation View -->
       <div class="conversation" id="view-conversation" style="display:none;">
         <div class="messages-container" id="messages-container"></div>
+        <div class="image-preview" id="image-preview">
+          <img id="preview-img" src="" alt="预览" />
+          <span class="preview-info" id="preview-info"></span>
+          <button class="preview-remove" onclick="removePreview()">&times;</button>
+        </div>
         <div class="message-input-area">
           <div class="input-row">
             <button class="btn-icon" onclick="triggerUpload()" title="上传图片" style="font-size:16px;">&#128247;</button>
@@ -857,12 +881,13 @@ function renderProjects() {
   container.innerHTML = state.projects.map(p => {
     const active = state.currentProject && state.currentProject.hash === p.hash;
     const dotClass = p.last_active && (Date.now() - new Date(p.last_active).getTime()) < 300000 ? 'dot-active' : 'dot-idle';
-    const displayName = displayPath(p.path) || decodeHash(p.hash);
+    const fullPath = displayPath(p.path) || decodeHash(p.hash);
+    const shortName = fullPath.replace(/\\/g, '/').split('/').filter(Boolean).pop() || fullPath;
     const sessionCount = p.session_count || 0;
     return '<div class="sidebar-item' + (active ? ' active' : '') + '" onclick="selectProject(\'' + p.hash + '\')">' +
       '<span class="dot ' + dotClass + '"></span>' +
       '<div class="item-info">' +
-      '<div class="item-path">' + escHtml(displayName) + '</div>' +
+      '<div class="item-path" title="' + escHtml(fullPath) + '">' + escHtml(shortName) + '</div>' +
       '<div class="item-meta">' + sessionCount + ' 个会话</div>' +
       '</div>' +
       (sessionCount > 0 ? '<span style="background:var(--accent);color:#fff;font-size:11px;padding:2px 7px;border-radius:10px;font-weight:600;">' + sessionCount + '</span>' : '') +
@@ -985,37 +1010,15 @@ function renderMessage(m) {
 }
 function toolIcon(name) {
   const n = (name || '').toLowerCase();
-  if (n.includes('bash') || n.includes('shell')) return '&#128295;';
-  if (n.includes('read') || n.includes('file')) return '&#128196;';
-  if (n.includes('write') || n.includes('edit')) return '&#9998;';
-  if (n.includes('search') || n.includes('grep')) return '&#128269;';
-  if (n.includes('web')) return '&#127760;';
+  if (n === 'bash' || n === 'shell') return '&#128295;';
+  if (n === 'read' || n === 'readfile') return '&#128196;';
+  if (n === 'write' || n === 'edit' || n === 'writefile') return '&#9998;';
+  if (n === 'glob' || n === 'grep' || n === 'search') return '&#128269;';
+  if (n === 'webfetch' || n === 'websearch') return '&#127760;';
+  if (n === 'agent') return '&#129302;';
+  if (n === 'todowrite') return '&#128203;';
+  if (n.includes('screenshot')) return '&#128247;';
   return '&#128295;';
-}
-async function sendMessage() {
-  const input = document.getElementById('msg-input');
-  const text = input.value.trim();
-  if (!text || !state.currentProject || !state.currentSession) return;
-  const sendBtn = document.getElementById('send-btn');
-  sendBtn.disabled = true;
-  input.value = '';
-  input.style.height = 'auto';
-  // Optimistic UI
-  state.messages.push({ type: 'user', text: text, timestamp: new Date().toISOString() });
-  state.autoScroll = true;
-  renderMessages();
-  try {
-    await apiFetch('/api/projects/' + state.currentProject.hash + '/sessions/' + state.currentSession.session_id + '/send', {
-      method: 'POST',
-      body: { message: text }
-    });
-    showToast('消息已发送', 'success');
-    setTimeout(loadMessages, 2000);
-  } catch (err) {
-    showToast('发送失败: ' + err.message, 'error');
-  } finally {
-    sendBtn.disabled = false;
-  }
 }
 function showNewSessionDialog() {
   const msg = prompt('输入新会话的初始消息:');
@@ -1042,23 +1045,59 @@ async function newSession(msg) {
 function triggerUpload() {
   document.getElementById('file-input').click();
 }
-async function handleUpload(input) {
+let pendingFile = null;
+function handleUpload(input) {
   const file = input.files[0];
-  if (!file || !state.currentProject || !state.currentSession) return;
+  if (!file) return;
+  pendingFile = file;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    document.getElementById('preview-img').src = e.target.result;
+    document.getElementById('preview-info').textContent = file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+    document.getElementById('image-preview').classList.add('active');
+  };
+  reader.readAsDataURL(file);
   input.value = '';
-  const formData = new FormData();
-  formData.append('file', file);
+}
+function removePreview() {
+  pendingFile = null;
+  document.getElementById('image-preview').classList.remove('active');
+}
+async function sendMessage() {
+  const input = document.getElementById('msg-input');
+  const text = input.value.trim();
+  if (!text && !pendingFile) return;
+  if (!state.currentProject || !state.currentSession) return;
+  const sendBtn = document.getElementById('send-btn');
+  sendBtn.disabled = true;
   try {
-    await apiFetch('/api/projects/' + state.currentProject.hash + '/sessions/' + state.currentSession.session_id + '/upload', {
-      method: 'POST',
-      body: formData,
-      headers: { 'Authorization': 'Bearer ' + state.apiKey }
-    });
-    showToast('图片已上传', 'success');
-    setTimeout(loadMessages, 2000);
+    if (pendingFile) {
+      const formData = new FormData();
+      formData.append('file', pendingFile);
+      formData.append('message', text || '请分析这张图片');
+      await apiFetch('/api/projects/' + state.currentProject.hash + '/sessions/' + state.currentSession.session_id + '/upload', {
+        method: 'POST',
+        body: formData,
+        headers: { 'Authorization': 'Bearer ' + state.apiKey }
+      });
+      removePreview();
+    } else {
+      await apiFetch('/api/projects/' + state.currentProject.hash + '/sessions/' + state.currentSession.session_id + '/send', {
+        method: 'POST',
+        body: JSON.stringify({ message: text }),
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    input.value = '';
+    input.style.height = 'auto';
+    state.messages.push({ type: 'user', text: text, timestamp: new Date().toISOString() });
+    renderMessages();
+    showToast('消息已发送', 'success');
+    setTimeout(loadMessages, 3000);
   } catch (err) {
-    showToast('上传失败: ' + err.message, 'error');
+    showToast('发送失败: ' + err.message, 'error');
   }
+  sendBtn.disabled = false;
 }
 document.addEventListener('DOMContentLoaded', () => {
   const mc = document.getElementById('messages-container');
@@ -1076,18 +1115,30 @@ function autoResize(el) {
 function renderMarkdown(text) {
   if (!text) return '';
   let html = escHtml(text);
-  // Code blocks
+  // Code blocks (fenced)
   html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
     return '<pre><code class="lang-' + (lang || 'text') + '">' + code.trim() + '</code></pre>';
   });
   // Inline code
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // Headings
+  html = html.replace(/^### (.+)$/gm, '<h4>$1</h4>');
+  html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^# (.+)$/gm, '<h2>$1</h2>');
   // Bold
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   // Italic
   html = html.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
+  // Strikethrough
+  html = html.replace(/~~(.+?)~~/g, '<del>$1</del>');
+  // Blockquote
+  html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+  // Horizontal rule
+  html = html.replace(/^---+$/gm, '<hr>');
   // Links
   html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  // Images
+  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;border-radius:8px;margin:8px 0;">');
   // Unordered lists
   html = html.replace(/(^|\n)((?:- .+\n?)+)/g, (_, pre, list) => {
     const items = list.trim().split('\n').map(i => '<li>' + i.replace(/^- /, '') + '</li>').join('');
