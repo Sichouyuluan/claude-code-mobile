@@ -112,6 +112,18 @@ class ClaudeReader:
         except Exception:
             return {}
 
+    def _build_session_index(self):
+        """Build a mapping of session_id -> project_hash for fast lookup."""
+        index = {}
+        if not self.projects_dir.exists():
+            return index
+        for proj_dir in self.projects_dir.iterdir():
+            if not proj_dir.is_dir():
+                continue
+            for f in proj_dir.glob("*.jsonl"):
+                index[f.stem] = proj_dir.name
+        return index
+
     def get_cc_status(self):
         """Detect if CC is busy or idle by checking:
         - Lock files in sessions/ directory (pid.json files with recent timestamps)
@@ -124,6 +136,8 @@ class ClaudeReader:
         results = []
         if not self.sessions_dir.exists():
             return results
+        # Build session index once for all status lookups
+        session_index = self._build_session_index()
         for pid_file in self.sessions_dir.glob("*.json"):
             try:
                 pid = int(pid_file.stem)
@@ -138,7 +152,7 @@ class ClaudeReader:
                 "%Y-%m-%dT%H:%M:%SZ",
                 time.gmtime(pid_file.stat().st_mtime),
             )
-            status = self._determine_session_status(pid, session_id, cwd)
+            status = self._determine_session_status(pid, session_id, cwd, session_index)
             results.append({
                 "session_id": session_id,
                 "cwd": cwd,
@@ -147,13 +161,18 @@ class ClaudeReader:
             })
         return results
 
-    def _determine_session_status(self, pid, session_id, cwd):
+    def _determine_session_status(self, pid, session_id, cwd, session_index=None):
         """Determine a single session's status from its JSONL last line."""
         if not session_id:
             return "idle"
-        # Find the JSONL file: match by session_id in any project directory
+        # Find the JSONL file: use index if available, otherwise scan
         jsonl_path = None
-        if self.projects_dir.exists():
+        if session_index and session_id in session_index:
+            proj_hash = session_index[session_id]
+            candidate = self.projects_dir / proj_hash / f"{session_id}.jsonl"
+            if candidate.exists():
+                jsonl_path = candidate
+        if not jsonl_path and self.projects_dir.exists():
             for proj_dir in self.projects_dir.iterdir():
                 if not proj_dir.is_dir():
                     continue

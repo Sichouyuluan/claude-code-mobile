@@ -258,6 +258,7 @@ class Panel(ctk.CTk):
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 creationflags=flags,
             )
+            self.server_pid = self.server_process.pid
             self.server_running = True
             self._refresh()
             threading.Thread(target=self._monitor, daemon=True).start()
@@ -265,7 +266,7 @@ class Panel(ctk.CTk):
             try:
                 self.status_label.configure(text=f"启动失败: {e}", text_color=RED)
             except Exception:
-                pass
+                pass  # Label may not exist yet during early init
 
     def _on_close(self):
         self._kill_server()
@@ -288,7 +289,10 @@ class Panel(ctk.CTk):
         self._kill_by_port()
 
     def _kill_by_port(self):
-        """Kill any process listening on the server port"""
+        """Kill our own server process on the port (by PID match).
+        Only kills the process if it matches the PID we started,
+        to avoid killing unrelated processes on the same port.
+        """
         try:
             import subprocess
             port = get_port()
@@ -301,17 +305,18 @@ class Panel(ctk.CTk):
                 creationflags=subprocess.CREATE_NO_WINDOW,
                 startupinfo=_si,
             )
+            our_pid = getattr(self, 'server_pid', None)
             for line in result.stdout.splitlines():
                 if f":{port}" in line and "LISTENING" in line:
                     parts = line.split()
                     pid = int(parts[-1])
-                    if pid > 0:
+                    if pid > 0 and pid == our_pid:
                         subprocess.run(["taskkill", "/F", "/PID", str(pid)],
                                        capture_output=True, timeout=5,
                                        creationflags=subprocess.CREATE_NO_WINDOW,
                                        startupinfo=_si)
         except Exception:
-            pass
+            pass  # Best-effort cleanup; port may not be in use
 
     def _stop(self):
         if self.server_process:
@@ -332,14 +337,14 @@ class Panel(ctk.CTk):
             if self.server_process:
                 self.server_process.wait()
         except Exception:
-            pass
+            pass  # Process may already be terminated
         self.server_running = False
         self.server_process = None
         try:
             if self.winfo_exists():
                 self.after(0, self._refresh)
         except Exception:
-            pass
+            pass  # Widget may be destroyed during shutdown
 
     def _refresh(self):
         try:
@@ -390,7 +395,7 @@ class Panel(ctk.CTk):
 
                 self.cc_label.configure(text=f"CC 进程  {cc} 个")
             except Exception:
-                pass
+                pass  # psutil may not be installed or process iteration fails
 
             # Logs
             try:
@@ -405,12 +410,12 @@ class Panel(ctk.CTk):
                         self.log_box.insert("0.0", "".join(lines))
                         self.log_box.configure(state="disabled")
             except Exception:
-                pass
+                pass  # Log files may not exist or be locked
 
             if self.server_running:
                 self.after(3000, self._refresh)
         except Exception:
-            pass
+            pass  # Widget may be destroyed during refresh cycle
 
     def _open_dashboard(self):
         port = get_port()
@@ -425,7 +430,9 @@ class Panel(ctk.CTk):
             self._clipboard_paste(key)
 
     def _save_key(self):
-        """Save new key from the entry field"""
+        """Save new key from the entry field, sync with running server if possible."""
+        import urllib.request
+        import json
         new_key = self.key_entry.get().strip()
         if not new_key:
             return
@@ -433,9 +440,26 @@ class Panel(ctk.CTk):
             self.status_label.configure(text="密钥至少8位", text_color=YELLOW)
             self.after(2000, lambda: self._refresh())
             return
-        # Always write to file directly (works with or without server)
         try:
+            # Read old key before overwriting (needed for server auth)
+            old_key = get_api_key()
             API_KEY_FILE.write_text(new_key)
+            # Try to sync with running server
+            if self.server_running:
+                try:
+                    port = get_port()
+                    req = urllib.request.Request(
+                        f"http://localhost:{port}/api/auth/change-key",
+                        data=json.dumps({
+                            "current_key": old_key,
+                            "new_key": new_key
+                        }).encode(),
+                        headers={"Content-Type": "application/json"},
+                        method="POST"
+                    )
+                    urllib.request.urlopen(req, timeout=3)
+                except Exception:
+                    pass  # Server may not be running or key mismatch is OK; file is already updated
             self.status_label.configure(text="密钥已更新", text_color=GREEN)
             self.after(2000, lambda: self._refresh())
         except Exception as e:
@@ -453,7 +477,7 @@ class Panel(ctk.CTk):
                 except ImportError:
                     self._clipboard_paste(url)
         except Exception:
-            pass
+            pass  # Attribute may not exist or clipboard unavailable
 
     def _copy_local_url(self):
         self._copy_url("local_url")
@@ -464,13 +488,17 @@ class Panel(ctk.CTk):
             self.clipboard_clear()
             self.clipboard_append(text)
         except Exception:
-            pass
+            pass  # Clipboard may not be available in some environments
 
 
 import atexit
 
 def _cleanup_orphaned():
-    """Kill any orphaned server process on exit"""
+    """Kill any orphaned server process on exit.
+    WARNING: This is a best-effort atexit handler that kills ANY process on the
+    configured port. It cannot access Panel.server_pid since it runs outside
+    the class. Use with caution if other services share the same port.
+    """
     try:
         import subprocess
         port = get_port()
@@ -489,7 +517,7 @@ def _cleanup_orphaned():
                                    creationflags=subprocess.CREATE_NO_WINDOW,
                                    startupinfo=_si)
     except Exception:
-        pass
+        pass  # Best-effort cleanup; failure is non-critical
 
 atexit.register(_cleanup_orphaned)
 

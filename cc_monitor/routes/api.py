@@ -2,11 +2,12 @@
 import asyncio
 import json
 import os
+import re
 import shutil
 import tempfile
 import time
 
-from fastapi import APIRouter, Request, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from cc_monitor.routes.auth import require_auth
@@ -14,9 +15,25 @@ from cc_monitor.claude_reader import ClaudeReader
 from cc_monitor.claude_sender import ClaudeSender
 from cc_monitor.config import get_config
 
+_SAFE_ID = re.compile(r'^[a-zA-Z0-9_-]+$')
+
+
+def _validate_id(value: str, name: str = "id"):
+    """Validate that a path component contains only safe characters."""
+    if not value or not _SAFE_ID.match(value):
+        raise HTTPException(status_code=400, detail=f"无效的 {name}")
+    return value
+
 router = APIRouter()
 _reader = None
 _sender = None
+
+
+def init_reader_sender():
+    """Called once at server startup to initialize singletons."""
+    global _reader, _sender
+    _reader = ClaudeReader(get_config("claude_home"))
+    _sender = ClaudeSender()
 
 
 def _get_reader():
@@ -59,6 +76,7 @@ def active_sessions(request: Request):
 @router.get("/api/projects/{project_hash}/sessions")
 def list_sessions(project_hash: str, request: Request):
     require_auth(request)
+    _validate_id(project_hash, "project_hash")
     return {"sessions": _get_reader().list_sessions(project_hash)}
 
 
@@ -66,6 +84,8 @@ def list_sessions(project_hash: str, request: Request):
 def get_messages(project_hash: str, session_id: str,
                  last_n: int = 50, offset: int = 0, request: Request = None):
     require_auth(request)
+    _validate_id(project_hash, "project_hash")
+    _validate_id(session_id, "session_id")
     messages = _get_reader().read_conversation(project_hash, session_id, last_n, offset)
     return {"messages": messages, "count": len(messages)}
 
@@ -73,6 +93,8 @@ def get_messages(project_hash: str, session_id: str,
 @router.post("/api/projects/{project_hash}/sessions/{session_id}/send")
 async def send_message(project_hash: str, session_id: str, request: Request):
     require_auth(request)
+    _validate_id(project_hash, "project_hash")
+    _validate_id(session_id, "session_id")
     body = await request.json()
     message = body.get("message", "").strip()
     if not message:
@@ -88,11 +110,16 @@ async def upload_image(project_hash: str, session_id: str,
                        message: str = Form("请分析这张图片"),
                        request: Request = None):
     require_auth(request)
+    _validate_id(project_hash, "project_hash")
+    _validate_id(session_id, "session_id")
     reader = _get_reader()
     # Resolve project cwd from session metadata
     meta = reader._read_meta_from_session(project_hash, session_id)
     proj_cwd = meta.get("cwd", "")
     content = await file.read()
+    max_mb = get_config("max_upload_mb", 5)
+    if len(content) > max_mb * 1024 * 1024:
+        return JSONResponse(status_code=413, content={"error": f"文件超过 {max_mb}MB 限制"})
     # Save to temp for sending to CC
     upload_dir = tempfile.mkdtemp()
     try:
@@ -162,6 +189,7 @@ def _ensure_gitignore(proj_cwd: str):
 @router.post("/api/projects/{project_hash}/new-session")
 async def new_session(project_hash: str, request: Request):
     require_auth(request)
+    _validate_id(project_hash, "project_hash")
     body = await request.json()
     message = body.get("message", "").strip()
     if not message:
@@ -176,7 +204,14 @@ async def new_session(project_hash: str, request: Request):
 async def delete_session(project_hash: str, session_id: str, request: Request):
     """Delete a session's JSONL file and related data."""
     require_auth(request)
+    _validate_id(project_hash, "project_hash")
+    _validate_id(session_id, "session_id")
     reader = _get_reader()
+    # Check if session is currently active
+    active = reader.get_active_sessions()
+    active_ids = {s.get("session_id") for s in active if s.get("running")}
+    if session_id in active_ids:
+        return JSONResponse(status_code=409, content={"error": "会话正在运行中，无法删除"})
     proj_dir = reader.projects_dir / project_hash
     jsonl_path = proj_dir / f"{session_id}.jsonl"
     if not jsonl_path.exists():
@@ -207,6 +242,8 @@ async def stream_session(project_hash: str, session_id: str, request: Request):
     Handles file rotation (size decrease) gracefully.
     """
     require_auth(request)
+    _validate_id(project_hash, "project_hash")
+    _validate_id(session_id, "session_id")
     reader = _get_reader()
     jsonl_path = reader.projects_dir / project_hash / f"{session_id}.jsonl"
 

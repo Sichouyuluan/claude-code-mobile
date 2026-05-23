@@ -1,6 +1,8 @@
 """页面路由"""
+from pathlib import Path
+
 from fastapi import APIRouter
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 import os
 
 router = APIRouter()
@@ -20,7 +22,9 @@ async def favicon():
 @router.get("/static/{filename}")
 async def static_file(filename: str):
     filepath = os.path.join(_static_dir, filename)
+    resolved = Path(filepath).resolve()
+    if not resolved.is_relative_to(Path(_static_dir).resolve()):
+        return JSONResponse(status_code=403, content={"error": "禁止访问"})
     if os.path.exists(filepath):
         return FileResponse(filepath)
-    from fastapi.responses import JSONResponse
     return JSONResponse(status_code=404, content={"error": "not found"})

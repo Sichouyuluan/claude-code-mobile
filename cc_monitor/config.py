@@ -11,8 +11,15 @@ def load_config(path: str = None) -> dict:
     global _config
     if path is None:
         path = os.path.join(_project_root, "config.yaml")
-    with open(path, "r", encoding="utf-8") as f:
-        _config = yaml.safe_load(f) or {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            _config = yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        _config = {}
+    except yaml.YAMLError:
+        _config = {}
+    except OSError:
+        _config = {}
     return _config
 
 

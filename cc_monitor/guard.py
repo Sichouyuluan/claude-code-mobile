@@ -6,7 +6,7 @@ from collections import deque
 
 class ScanGuard:
     def __init__(self, window_seconds=10, path_threshold=15,
-                 flood_threshold=50, protect_minutes=3, stop_after=5,
+                 flood_threshold=50, protect_minutes=3, stop_after=20,
                  stop_callback=None):
         self._lock = threading.Lock()
         self._window_seconds = window_seconds

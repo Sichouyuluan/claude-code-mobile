@@ -1,4 +1,5 @@
 """CC Remote Dashboard — FastAPI 入口"""
+import asyncio
 import os
 import secrets
 from contextlib import asynccontextmanager
@@ -32,6 +33,14 @@ def _load_or_generate_api_key() -> str:
     return key
 
 
+async def _cleanup_loop():
+    """Periodically clean up stale rate limiter entries."""
+    while True:
+        await asyncio.sleep(300)  # every 5 minutes
+        if app_state.rate_limiter:
+            app_state.rate_limiter._cleanup_old()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app_state.rate_limiter = RateLimiter(
@@ -39,6 +48,10 @@ async def lifespan(app: FastAPI):
         window_seconds=60,
     )
     app_state.device_tracker = OnlineDeviceTracker(offline_threshold=30)
+
+    # Initialize reader/sender singletons (Task 2: avoids race condition)
+    from cc_monitor.routes.api import init_reader_sender
+    init_reader_sender()
 
     def _stop_uvicorn():
         import signal
@@ -48,7 +61,13 @@ async def lifespan(app: FastAPI):
     app_state.api_key = _load_or_generate_api_key()
     print(f"[CC Dashboard] API Key: {app_state.api_key[:4]}...***")
     print(f"[CC Dashboard] 启动: http://0.0.0.0:{get_config('port', 8001)}")
+
+    # Start background cleanup task (Task 1)
+    cleanup_task = asyncio.create_task(_cleanup_loop())
+
     yield
+
+    cleanup_task.cancel()
     print("[CC Dashboard] 关闭")
 
 
@@ -57,7 +76,7 @@ app = FastAPI(title="CC Remote Dashboard", version="1.0.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

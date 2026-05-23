@@ -83,7 +83,8 @@ async def login(req: LoginRequest):
     resp.set_cookie(
         COOKIE_NAME, cookie_val,
         max_age=COOKIE_DAYS * 86400,
-        httponly=True, samesite="strict"
+        httponly=True, samesite="strict",
+        secure=True
     )
     return resp
 
