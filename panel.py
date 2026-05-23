@@ -399,23 +399,28 @@ class Panel(ctk.CTk):
             except Exception:
                 pass  # psutil may not be installed or process iteration fails
 
-            # Logs
+            # Logs — read from ALL log files, show last 30 lines
             try:
                 log_dir = PROJECT_DIR / "logs"
                 if log_dir.exists():
-                    log_files = sorted(log_dir.glob("cc_*.log"), reverse=True)
-                    if log_files:
-                        with open(log_files[0], "r", encoding="utf-8", errors="replace") as f:
-                            lines = list(deque(f, maxlen=15))
+                    log_files = sorted(log_dir.glob("cc_*.log"), key=lambda f: f.stat().st_mtime)
+                    all_lines = []
+                    for lf in log_files[-3:]:  # last 3 files
+                        try:
+                            with open(lf, "r", encoding="utf-8", errors="replace") as f:
+                                all_lines.extend(f.readlines())
+                        except Exception:
+                            continue
+                    recent = all_lines[-30:] if len(all_lines) > 30 else all_lines
+                    if recent:
                         self.log_box.configure(state="normal")
                         self.log_box.delete("0.0", "end")
-                        self.log_box.insert("0.0", "".join(lines))
+                        self.log_box.insert("0.0", "".join(recent))
                         self.log_box.configure(state="disabled")
             except Exception:
-                pass  # Log files may not exist or be locked
+                pass
 
-            if self.server_running:
-                self.after(3000, self._refresh)
+            self.after(3000, self._refresh)
         except Exception:
             pass  # Widget may be destroyed during refresh cycle
 
