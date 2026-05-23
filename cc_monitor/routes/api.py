@@ -202,7 +202,9 @@ def cc_status(request: Request):
 @router.get("/api/projects/{project_hash}/sessions/{session_id}/stream")
 async def stream_session(project_hash: str, session_id: str, request: Request):
     """SSE endpoint that streams new messages as they appear.
-    Polls the JSONL file every 2 seconds and sends new lines as SSE events.
+    Polls the JSONL file every 1.5 seconds using byte offset tracking.
+    Sends only new lines since last check, including tool_use and thinking data.
+    Handles file rotation (size decrease) gracefully.
     """
     require_auth(request)
     reader = _get_reader()
@@ -212,57 +214,83 @@ async def stream_session(project_hash: str, session_id: str, request: Request):
         if not jsonl_path.exists():
             yield "event: error\ndata: {\"error\": \"会话文件不存在\"}\n\n"
             return
-        # Start from the current end of file
+
+        # Start from current end of file (only stream new data)
         try:
-            with open(jsonl_path, "r", encoding="utf-8", errors="replace") as f:
-                lines = f.readlines()
-                last_count = len(lines)
-        except Exception:
+            last_offset = jsonl_path.stat().st_size
+        except OSError:
             yield "event: error\ndata: {\"error\": \"无法读取文件\"}\n\n"
             return
 
         while True:
-            # Check if client disconnected
             if await request.is_disconnected():
                 break
-            await asyncio.sleep(2)
+            await asyncio.sleep(1.5)
             try:
-                with open(jsonl_path, "r", encoding="utf-8", errors="replace") as f:
-                    lines = f.readlines()
-                new_count = len(lines)
-                if new_count > last_count:
-                    new_lines = lines[last_count:]
-                    last_count = new_count
-                    for line in new_lines:
-                        line = line.strip()
-                        if not line:
-                            continue
-                        try:
-                            obj = json.loads(line)
-                            t = obj.get("type")
-                            if t in ("user", "assistant"):
-                                msg = obj.get("message", {})
-                                content = msg.get("content", [])
-                                text_parts = []
-                                for b in content:
-                                    if isinstance(b, dict) and b.get("type") == "text":
-                                        text_parts.append(b.get("text", ""))
-                                    elif isinstance(b, str):
-                                        text_parts.append(b)
-                                event_data = json.dumps({
-                                    "type": t,
-                                    "text": "\n".join(text_parts),
-                                    "timestamp": obj.get("timestamp", ""),
-                                    "uuid": obj.get("uuid", ""),
-                                }, ensure_ascii=False)
-                                yield f"data: {event_data}\n\n"
-                        except json.JSONDecodeError:
-                            continue
-            except FileNotFoundError:
+                current_size = jsonl_path.stat().st_size
+            except OSError:
                 yield "event: error\ndata: {\"error\": \"文件已被删除\"}\n\n"
                 break
+
+            # File rotation detection: if file shrank, reset offset
+            if current_size < last_offset:
+                last_offset = 0
+
+            if current_size <= last_offset:
+                continue
+
+            # Read only new bytes
+            try:
+                with open(jsonl_path, "r", encoding="utf-8", errors="replace") as f:
+                    f.seek(last_offset)
+                    new_data = f.read()
+                    last_offset = f.tell()
             except Exception:
                 continue
+
+            for raw_line in new_data.splitlines():
+                line = raw_line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                t = obj.get("type")
+                if t not in ("user", "assistant"):
+                    continue
+                msg = obj.get("message", {})
+                content = msg.get("content", [])
+                text_parts = []
+                tool_uses = []
+                thinking_text = ""
+                for b in content:
+                    if not isinstance(b, dict):
+                        if isinstance(b, str):
+                            text_parts.append(b)
+                        continue
+                    btype = b.get("type", "")
+                    if btype == "text":
+                        text_parts.append(b.get("text", ""))
+                    elif btype == "tool_use":
+                        tool_uses.append(b.get("name", "unknown"))
+                    elif btype == "thinking":
+                        thinking_text = b.get("thinking", "")
+                event_data = {
+                    "type": t,
+                    "text": "\n".join(text_parts),
+                    "timestamp": obj.get("timestamp", ""),
+                    "uuid": obj.get("uuid", ""),
+                }
+                if t == "assistant":
+                    event_data["model"] = msg.get("model", "")
+                    event_data["tool_uses"] = tool_uses
+                    event_data["stop_reason"] = msg.get("stop_reason", "")
+                    if thinking_text:
+                        event_data["thinking"] = thinking_text
+                if t == "user" and tool_uses:
+                    event_data["tool_uses"] = tool_uses
+                yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
         event_generator(),

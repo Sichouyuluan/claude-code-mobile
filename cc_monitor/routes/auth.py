@@ -58,6 +58,10 @@ def check_auth(request: Request) -> bool:
     if auth.startswith("Bearer "):
         token = auth[7:].strip()
         return hmac.compare_digest(token, app_state.api_key)
+    # Support api_key as query parameter (needed for EventSource which can't set headers)
+    query_key = request.query_params.get("api_key")
+    if query_key:
+        return hmac.compare_digest(query_key.strip(), app_state.api_key)
     return False
 
 

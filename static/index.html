@@ -694,6 +694,39 @@ a:hover { text-decoration: underline; }
 }
 .sidebar-content::-webkit-scrollbar { width: 4px; }
 .sidebar-content::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 2px; }
+/* SSE typing indicator */
+.sse-typing-indicator {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 0; color: var(--accent); font-size: 13px;
+  font-weight: 500; opacity: 0; transition: opacity 0.3s;
+}
+.sse-typing-indicator.visible { opacity: 1; }
+.sse-typing-dots { display: flex; gap: 3px; }
+.sse-typing-dots span {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent); opacity: 0.4;
+  animation: sseDotPulse 1.2s ease-in-out infinite;
+}
+.sse-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.sse-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes sseDotPulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+/* Typewriter cursor */
+.typewriter-cursor {
+  display: inline-block; width: 2px; height: 1em;
+  background: var(--accent); margin-left: 1px;
+  vertical-align: text-bottom;
+  animation: cursorBlink 0.8s step-end infinite;
+}
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+/* SSE stream message entrance */
+.sse-msg-enter { animation: sseMsgSlideIn 0.3s ease; }
+@keyframes sseMsgSlideIn { from { opacity: 0; transform: translateY(12px); } }
 </style>
 </head>
 <body>
@@ -791,6 +824,10 @@ a:hover { text-decoration: underline; }
       <!-- Conversation View -->
       <div class="conversation" id="view-conversation" style="display:none;">
         <div class="messages-container" id="messages-container"></div>
+        <div class="sse-typing-indicator" id="sse-typing-indicator">
+          <div class="sse-typing-dots"><span></span><span></span><span></span></div>
+          <span>正在接收...</span>
+        </div>
         <div class="image-preview" id="image-preview">
           <img id="preview-img" src="" alt="预览" />
           <span class="preview-info" id="preview-info"></span>
@@ -827,7 +864,15 @@ const state = {
   hasMoreMessages: true,
   loadingMore: false,
   expandedProjects: {},
-  expandedSessions: {}
+  expandedSessions: {},
+  // SSE streaming state
+  sseConnection: null,
+  sseReconnectDelay: 1000,
+  sseMaxReconnectDelay: 30000,
+  sseReconnectTimer: null,
+  sseTypingEl: null,
+  sseTypewriterQueue: [],
+  sseTypewriterRunning: false,
 };
 document.addEventListener('DOMContentLoaded', () => {
   const savedKey = localStorage.getItem('cc_api_key');
@@ -944,6 +989,7 @@ async function handleLogin(e) {
   return false;
 }
 function handleLogout() {
+  disconnectSSE();
   state.apiKey = '';
   localStorage.removeItem('cc_api_key');
   stopAutoRefresh();
@@ -961,6 +1007,10 @@ function showApp() {
   updateFooterUrl();
 }
 function navigateTo(view, data) {
+  // Stop SSE when leaving conversation view
+  if (state.currentView === 'conversation' && view !== 'conversation') {
+    disconnectSSE();
+  }
   state.currentView = view;
   document.getElementById('view-dashboard').style.display = view === 'dashboard' ? '' : 'none';
   document.getElementById('view-sessions').style.display = view === 'sessions' ? '' : 'none';
@@ -980,6 +1030,7 @@ function navigateTo(view, data) {
 }
 function goBack() {
   if (state.currentView === 'conversation') {
+    disconnectSSE();
     navigateTo('sessions');
   } else if (state.currentView === 'sessions') {
     navigateTo('dashboard');
@@ -1274,6 +1325,8 @@ async function loadMessages() {
     state.hasMoreMessages = state.messages.length >= state.messageLimit;
     state.autoScroll = true;
     renderMessages();
+    // Start SSE stream for real-time updates
+    connectSSE();
   } catch (err) {
     container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><h3>加载失败</h3><p>' + escHtml(err.message) + '</p></div>';
   }
@@ -1545,7 +1598,7 @@ async function sendMessage() {
     state.autoScroll = true;
     renderMessages();
     showToast('消息已发送', 'success');
-    setTimeout(loadMessages, 3000);
+    // SSE stream will deliver the response in real-time
   } catch (err) {
     showToast('发送失败: ' + err.message, 'error');
   }
@@ -1659,6 +1712,315 @@ function formatTime(ts) {
     const d = new Date(ts);
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   } catch { return ''; }
+}
+
+// ===================== SSE Streaming =====================
+function connectSSE() {
+  disconnectSSE();
+  if (!state.currentProject || !state.currentSession) return;
+  const hash = state.currentProject.hash;
+  const sid = state.currentSession.session_id;
+  const url = '/api/projects/' + hash + '/sessions/' + sid + '/stream';
+  // EventSource doesn't support custom headers, so pass auth as query param
+  const sep = url.includes('?') ? '&' : '?';
+  const es = new EventSource(url + sep + 'api_key=' + encodeURIComponent(state.apiKey));
+  state.sseConnection = es;
+  state.sseReconnectDelay = 1000;
+
+  es.onopen = () => {
+    state.sseReconnectDelay = 1000;
+  };
+
+  es.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      handleSSEMessage(data);
+    } catch (e) {
+      // ignore parse errors
+    }
+  };
+
+  es.addEventListener('error', (event) => {
+    try {
+      if (event.data) {
+        const data = JSON.parse(event.data);
+        if (data.error) {
+          // Non-recoverable errors (file deleted, etc.)
+          disconnectSSE();
+          return;
+        }
+      }
+    } catch {}
+    // Connection error - attempt reconnect with backoff
+    es.close();
+    state.sseConnection = null;
+    scheduleSSEReconnect();
+  });
+
+  es.onerror = () => {
+    es.close();
+    state.sseConnection = null;
+    scheduleSSEReconnect();
+  };
+}
+
+function scheduleSSEReconnect() {
+  if (state.currentView !== 'conversation') return;
+  if (state.sseReconnectTimer) return;
+  const delay = state.sseReconnectDelay;
+  state.sseReconnectTimer = setTimeout(() => {
+    state.sseReconnectTimer = null;
+    if (state.currentView === 'conversation' && state.currentProject && state.currentSession) {
+      connectSSE();
+    }
+  }, delay);
+  // Exponential backoff
+  state.sseReconnectDelay = Math.min(delay * 2, state.sseMaxReconnectDelay);
+}
+
+function disconnectSSE() {
+  if (state.sseReconnectTimer) {
+    clearTimeout(state.sseReconnectTimer);
+    state.sseReconnectTimer = null;
+  }
+  if (state.sseConnection) {
+    state.sseConnection.close();
+    state.sseConnection = null;
+  }
+  hideTypingIndicator();
+  // Clear typewriter state
+  state.sseTypewriterQueue = [];
+  state.sseTypewriterRunning = false;
+}
+
+function handleSSEMessage(data) {
+  if (!data || !data.type) return;
+  showTypingIndicator();
+  hideTypingAfterDelay();
+
+  // Build a message object matching the format used by renderMessages
+  const msg = {
+    type: data.type,
+    text: data.text || '',
+    timestamp: data.timestamp || new Date().toISOString(),
+    uuid: data.uuid || '',
+  };
+  if (data.type === 'assistant') {
+    msg.model = data.model || '';
+    msg.tool_uses = data.tool_uses || [];
+    msg.stop_reason = data.stop_reason || '';
+    if (data.thinking) msg.thinking = data.thinking;
+  }
+  if (data.tool_uses && data.type === 'user') {
+    msg.tool_uses = data.tool_uses;
+  }
+
+  // Append to messages array
+  state.messages.push(msg);
+
+  // Smart auto-scroll: only if user is near bottom
+  const container = document.getElementById('messages-container');
+  const distFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+  const shouldScroll = distFromBottom < 120;
+
+  // Append to DOM without full re-render
+  appendSSEMessageToDOM(msg, container);
+
+  if (shouldScroll) {
+    container.scrollTop = container.scrollHeight;
+    state.autoScroll = true;
+  }
+}
+
+function appendSSEMessageToDOM(msg, container) {
+  // Remove empty state if present
+  const emptyState = container.querySelector('.empty-state');
+  if (emptyState) emptyState.remove();
+
+  // Check if we can merge with the last group (same type)
+  const lastGroup = container.querySelector('.message-group:last-child');
+  const lastType = lastGroup ? lastGroup.dataset.type : null;
+
+  if (lastType === msg.type) {
+    // Append to existing group
+    const contentEl = lastGroup.querySelector(lastType === 'user' ? '.group-bubble-user' : '.group-content');
+    if (contentEl) {
+      // Remove old timestamp
+      const oldTs = lastGroup.querySelector('.group-timestamp');
+      if (oldTs) oldTs.remove();
+
+      if (msg.type === 'assistant') {
+        appendAssistantContent(msg, contentEl);
+      } else {
+        appendUserContent(msg, contentEl);
+      }
+      // Add updated timestamp
+      if (msg.timestamp) {
+        const tsEl = document.createElement('div');
+        tsEl.className = 'group-timestamp';
+        tsEl.textContent = formatTime(msg.timestamp);
+        lastGroup.appendChild(tsEl);
+      }
+    }
+  } else {
+    // Create new group
+    const groupEl = document.createElement('div');
+    groupEl.className = 'message-group ' + msg.type + ' sse-msg-enter';
+    groupEl.dataset.type = msg.type;
+
+    if (msg.type === 'user') {
+      groupEl.style.alignSelf = 'flex-end';
+      groupEl.style.maxWidth = window.innerWidth <= 768 ? '92%' : '85%';
+      groupEl.style.width = 'fit-content';
+      const bubble = document.createElement('div');
+      bubble.className = 'group-bubble-user';
+      appendUserContent(msg, bubble);
+      groupEl.appendChild(bubble);
+    } else {
+      groupEl.style.width = '100%';
+      groupEl.style.maxWidth = window.innerWidth <= 768 ? '92%' : '85%';
+      const content = document.createElement('div');
+      content.className = 'group-content';
+      appendAssistantContent(msg, content);
+      groupEl.appendChild(content);
+    }
+
+    if (msg.timestamp) {
+      const tsEl = document.createElement('div');
+      tsEl.className = 'group-timestamp';
+      tsEl.textContent = formatTime(msg.timestamp);
+      if (msg.type === 'user') tsEl.style.textAlign = 'right';
+      groupEl.appendChild(tsEl);
+    }
+
+    container.appendChild(groupEl);
+  }
+
+  // Remove busy indicator from previous render
+  const oldBusy = container.querySelector('.busy-indicator');
+  if (oldBusy) oldBusy.remove();
+
+  // Show busy indicator if assistant is still working (tool_use pending)
+  if (msg.type === 'assistant' && msg.stop_reason === 'tool_use') {
+    const busyEl = document.createElement('div');
+    busyEl.className = 'busy-indicator';
+    busyEl.innerHTML = '<span class="busy-dot"></span> 正在执行...';
+    container.appendChild(busyEl);
+  }
+}
+
+function appendAssistantContent(msg, container) {
+  // Thinking block
+  if (msg.thinking) {
+    const thinkEl = document.createElement('div');
+    thinkEl.className = 'thinking-block';
+    thinkEl.innerHTML = '<div class="thinking-header" onclick="toggleCollapsible(this)">' +
+      '<span class="arrow">&#9654;</span> 💭 思考中...' +
+      '</div>' +
+      '<div class="thinking-content">' + renderMarkdown(msg.thinking) + '</div>';
+    container.appendChild(thinkEl);
+  }
+
+  // Text content with typewriter effect
+  if (msg.text && msg.text.trim()) {
+    const textEl = document.createElement('div');
+    textEl.className = 'sse-stream-text';
+    container.appendChild(textEl);
+    typewriterAppend(textEl, msg.text);
+  }
+
+  // Tool calls as badges
+  if (msg.tool_uses && msg.tool_uses.length) {
+    const toolsWrap = document.createElement('div');
+    toolsWrap.style.marginTop = '4px';
+    msg.tool_uses.forEach(t => {
+      const name = typeof t === 'string' ? t : (t.name || t.tool || '工具');
+      const icon = toolIcon(name);
+      const badge = document.createElement('span');
+      badge.className = 'tool-call-badge';
+      badge.innerHTML = icon + ' ' + escHtml(name);
+      toolsWrap.appendChild(badge);
+      toolsWrap.appendChild(document.createTextNode(' '));
+    });
+    container.appendChild(toolsWrap);
+  }
+}
+
+function appendUserContent(msg, container) {
+  if (msg.text) {
+    const div = document.createElement('div');
+    div.innerHTML = renderMarkdown(msg.text);
+    container.appendChild(div);
+  }
+}
+
+// Typewriter effect: appends text character by character
+function typewriterAppend(el, text) {
+  state.sseTypewriterQueue.push({ el, text });
+  if (!state.sseTypewriterRunning) {
+    runTypewriterQueue();
+  }
+}
+
+function runTypewriterQueue() {
+  if (state.sseTypewriterQueue.length === 0) {
+    state.sseTypewriterRunning = false;
+    return;
+  }
+  state.sseTypewriterRunning = true;
+  const { el, text } = state.sseTypewriterQueue.shift();
+  // For short texts, render immediately (no typewriter)
+  if (text.length < 60) {
+    el.innerHTML = renderMarkdown(text);
+    runTypewriterQueue();
+    return;
+  }
+
+  let idx = 0;
+  const chunkSize = 8; // characters per tick
+  const interval = 20; // ms between ticks
+  const cursor = document.createElement('span');
+  cursor.className = 'typewriter-cursor';
+
+  function tick() {
+    if (idx >= text.length) {
+      // Done: replace with final rendered markdown
+      el.innerHTML = renderMarkdown(text);
+      runTypewriterQueue();
+      return;
+    }
+    idx = Math.min(idx + chunkSize, text.length);
+    // Show raw text chunk (no markdown yet for performance)
+    const displayText = text.slice(0, idx);
+    el.textContent = displayText;
+    el.appendChild(cursor);
+    // Auto-scroll during typewriter
+    const container = document.getElementById('messages-container');
+    if (state.autoScroll) {
+      container.scrollTop = container.scrollHeight;
+    }
+    setTimeout(tick, interval);
+  }
+  tick();
+}
+
+function showTypingIndicator() {
+  const el = document.getElementById('sse-typing-indicator');
+  if (el) el.classList.add('visible');
+}
+
+function hideTypingIndicator() {
+  const el = document.getElementById('sse-typing-indicator');
+  if (el) el.classList.remove('visible');
+}
+
+let _sseHideTimer = null;
+function hideTypingAfterDelay() {
+  if (_sseHideTimer) clearTimeout(_sseHideTimer);
+  _sseHideTimer = setTimeout(() => {
+    hideTypingIndicator();
+    _sseHideTimer = null;
+  }, 3000);
 }
 </script>
 </body>
