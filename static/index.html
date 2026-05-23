@@ -682,35 +682,22 @@ a:hover { text-decoration: underline; }
   flex-shrink: 0; margin-top: 4px; padding: 0;
   white-space: nowrap; font-size: 11px; color: var(--text-muted);
 }
-/* Round containers */
-.round {
-  margin-bottom: 4px; border-radius: 8px;
-  border: 1px solid var(--glass-border);
-  overflow: hidden;
-}
-.round-expanded {
-  background: transparent;
-}
-.round-collapsed {
+/* Round divider — thin line between conversation rounds */
+.round-divider {
   display: flex; align-items: center; gap: 8px;
-  padding: 8px 12px; cursor: pointer;
-  background: rgba(255,255,255,0.02);
+  padding: 6px 12px; margin: 12px 0 8px 0;
+  cursor: pointer; user-select: none;
+  border-top: 1px solid var(--glass-border);
   transition: background 0.2s;
 }
-.round-collapsed:hover { background: var(--glass-bg-hover); }
-.round-header {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 12px; cursor: pointer;
-  background: rgba(255,255,255,0.02);
-  transition: background 0.2s; user-select: none;
-}
-.round-header:hover { background: var(--glass-bg-hover); }
+.round-divider:hover { background: rgba(255,255,255,0.02); }
+.round-collapsed { margin: 4px 0; border-top: none;
+  background: rgba(255,255,255,0.02); border-radius: 6px; }
 .round-arrow { font-size: 10px; color: var(--text-muted); transition: transform 0.2s; flex-shrink: 0; }
 .round-num { font-size: 11px; color: var(--accent); font-weight: 600; flex-shrink: 0; }
 .round-summary { font-size: 13px; color: var(--text-secondary); flex: 1; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .round-count { font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
-.round-body { padding: 8px 0; }
 @keyframes msgIn { from { opacity: 0; transform: translateY(8px); } }
 /* User group bubble — glass */
 .group-bubble-user {
@@ -1856,9 +1843,6 @@ function renderMessages() {
     state._roundsInit = true;
   }
   let html = '';
-  // Debug: show round stats at top
-  const expandedCount = Object.values(state.expandedRounds).filter(Boolean).length;
-  html += '<div style="padding:8px 12px;font-size:11px;color:var(--text-muted);background:rgba(255,255,255,0.03);border-bottom:1px solid var(--glass-border);">轮次: ' + rounds.length + ' | 展开: ' + expandedCount + ' | 消息: ' + state.messages.length + '</div>';
   rounds.forEach((round, idx) => {
     html += renderRound(round, idx, rounds.length);
   });
@@ -1924,24 +1908,19 @@ function renderRound(round, idx, totalRounds) {
   const userSummary = round.userText.replace(/```[\s\S]*?```/g, '[代码]').replace(/\n/g, ' ').slice(0, 80);
   const msgCount = round.messages.length;
   if (expanded) {
+    // Expanded: show divider + all messages as individual groups
     const groups = groupMessages(round.messages);
-    let inner = groups.map(renderGroup).join('');
-    // Debug: show group info if inner is empty
-    if (!inner || inner.trim().length < 10) {
-      inner = '<div style="padding:8px;font-size:11px;color:var(--text-muted);">调试: ' + round.messages.length + '条消息, ' + groups.length + '组, inner长度=' + inner.length + ' | 首条: type=' + (round.messages[0]||{}).type + ' text=' + ((round.messages[0]||{}).text||'').length + ' thinking=' + ((round.messages[0]||{}).thinking||'').length + '</div>' + inner;
-    }
-    return '<div class="round round-expanded" data-round="' + idx + '">' +
-      '<div class="round-header" onclick="toggleRound(' + idx + ')">' +
+    let html = '<div class="round-divider" onclick="toggleRound(' + idx + ')">' +
       '<span class="round-arrow">&#9660;</span>' +
       '<span class="round-num">#' + roundNum + '</span>' +
       '<span class="round-summary">' + escHtml(userSummary || '(无文字)') + '</span>' +
       '<span class="round-count">' + msgCount + '条</span>' +
-      '</div>' +
-      '<div class="round-body">' + inner + '</div>' +
       '</div>';
+    html += groups.map(renderGroup).join('');
+    return html;
   } else {
-    // Collapsed: show only the user question summary
-    return '<div class="round round-collapsed" data-round="' + idx + '" onclick="toggleRound(' + idx + ')">' +
+    // Collapsed: single line divider
+    return '<div class="round-divider round-collapsed" onclick="toggleRound(' + idx + ')">' +
       '<span class="round-arrow">&#9654;</span>' +
       '<span class="round-num">#' + roundNum + '</span>' +
       '<span class="round-summary">' + escHtml(userSummary || '(无文字)') + '</span>' +
