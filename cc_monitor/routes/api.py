@@ -86,7 +86,18 @@ def get_messages(project_hash: str, session_id: str,
     require_auth(request)
     _validate_id(project_hash, "project_hash")
     _validate_id(session_id, "session_id")
-    messages = _get_reader().read_conversation(project_hash, session_id, last_n, offset)
+    reader = _get_reader()
+    # Debug: log raw line count and parsed count
+    p = reader.projects_dir / project_hash / f"{session_id}.jsonl"
+    raw_count = 0
+    if p.exists():
+        with open(p, "r", encoding="utf-8", errors="replace") as f:
+            raw_count = sum(1 for _ in f)
+    messages = reader.read_conversation(project_hash, session_id, last_n, offset)
+    import logging
+    logging.getLogger("cc_dashboard").info(
+        f"[分页] session={session_id[:12]} raw_lines={raw_count} last_n={last_n} offset={offset} 返回={len(messages)}条"
+    )
     return {"messages": messages, "count": len(messages)}
 
 
