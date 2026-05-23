@@ -424,9 +424,17 @@ class Panel(ctk.CTk):
             self.status_label.configure(text="密钥至少8位", text_color=YELLOW)
             self.after(2000, lambda: self._refresh())
             return
-        # Get current key for API auth
-        current_key = get_api_key()
+        # Check if server is running first
+        import socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        result = sock.connect_ex(('127.0.0.1', get_port()))
+        sock.close()
+        if result != 0:
+            self.status_label.configure(text="服务未启动，无法修改", text_color=YELLOW)
+            self.after(2000, lambda: self._refresh())
+            return
         # Call API
+        current_key = get_api_key()
         import urllib.request
         import json as _json
         try:
@@ -437,7 +445,7 @@ class Panel(ctk.CTk):
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {current_key}"
             })
-            resp = urllib.request.urlopen(req)
+            resp = urllib.request.urlopen(req, timeout=5)
             result = _json.loads(resp.read())
             if result.get("success"):
                 self.status_label.configure(text="密钥已更新", text_color=GREEN)
