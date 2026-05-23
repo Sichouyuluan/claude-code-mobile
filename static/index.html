@@ -1768,37 +1768,40 @@ async function loadMoreMessages() {
   if (state.loadingMore || !state.hasMoreMessages) return;
   if (!state.messages.length) return;
   state.loadingMore = true;
-  // Show loading indicator
-  const loadLink = document.querySelector('.load-more-link');
-  if (loadLink) loadLink.textContent = '加载中...';
+  updateLoadMoreBar();
   try {
     const loadCount = 5;
     const url = '/api/projects/' + state.currentProject.hash + '/sessions/' + state.currentSession.session_id +
       '/messages?last_n=' + loadCount + '&offset=' + state.messages.length;
-    const data = await apiFetch(url);
+    // Timeout after 10 seconds
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+    const data = await apiFetch(url, { signal: controller.signal });
+    clearTimeout(timer);
     const newMessages = data.messages || [];
     if (newMessages.length === 0) {
       state.hasMoreMessages = false;
-      showToast('已到最早的消息', 'info');
     } else {
       const container = document.getElementById('messages-container');
       const prevHeight = container.scrollHeight;
       state.messages = [...newMessages, ...state.messages];
       if (newMessages.length < loadCount) {
         state.hasMoreMessages = false;
-        showToast('已加载全部历史消息', 'info');
       }
-      // Disable auto-scroll before rendering to preserve scroll position
       state.autoScroll = false;
       renderMessages();
-      // Restore scroll position so user doesn't lose their place
       container.scrollTop = container.scrollHeight - prevHeight;
     }
-    updateLoadMoreBar();
   } catch (err) {
-    showToast('加载更多失败: ' + err.message, 'error');
+    if (err.name === 'AbortError') {
+      showToast('加载超时，请重试', 'error');
+    } else {
+      showToast('加载更多失败: ' + err.message, 'error');
+    }
+    // Don't disable further loading on transient errors
   }
   state.loadingMore = false;
+  updateLoadMoreBar();
 }
 function updateLoadMoreBar() {
   const bar = document.getElementById('load-more-bar');
