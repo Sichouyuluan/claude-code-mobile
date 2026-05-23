@@ -615,10 +615,15 @@ a:hover { text-decoration: underline; }
 }
 .sidebar-project-sessions.open { display: block; }
 .sidebar-project-session {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
   font-size: 12px; padding: 6px 8px; border-radius: 6px;
   cursor: pointer; color: var(--text-secondary);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   transition: background var(--transition);
+}
+.session-size-tag {
+  font-size: 10px; color: var(--text-muted); flex-shrink: 0;
+  padding: 1px 5px; border-radius: 3px;
+  background: rgba(255,255,255,0.04);
 }
 .sidebar-project-session:hover {
   background: var(--glass-bg-hover); color: var(--text);
@@ -1472,7 +1477,9 @@ function renderActiveSessions() {
     const projectName = cwd ? cwd.replace(/\\/g, '/').split('/').filter(Boolean).pop() || cwd : ('PID ' + (a.pid || '?'));
     const subtitle = cwd || (a.running ? '运行中' : '空闲');
     const projectHash = a.project_hash || '';
+    const sessionId = a.session_id || '';
     const onclick = projectHash ? 'onclick="selectProject(\'' + escHtml(projectHash) + '\')"' :
+      sessionId ? 'onclick="selectProjectBySession(\'' + escHtml(sessionId) + '\')"' :
       cwd ? 'onclick="selectProjectByPath(\'' + escHtml(cwd) + '\')"' : '';
     return '<div class="sidebar-item" ' + onclick + '>' +
       '<span class="dot dot-active"></span>' +
@@ -1482,8 +1489,25 @@ function renderActiveSessions() {
       '</div></div>';
   }).join('');
 }
+function selectProjectBySession(sessionId) {
+  // Find project by checking if the session exists in it
+  const match = state.projects.find(p => {
+    return p._recentSessions && p._recentSessions.some(s => s.session_id === sessionId);
+  });
+  if (match) {
+    selectProject(match.hash);
+    return;
+  }
+  // If not found in cached sessions, try path matching as fallback
+  if (state.projects.length) {
+    // Just select the first project and let user navigate
+    selectProject(state.projects[0].hash);
+  }
+}
 function selectProjectByPath(cwd) {
-  const match = state.projects.find(p => p.path === cwd || p.path === cwd.replace(/\//g, '\\'));
+  const normalize = p => (p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  const target = normalize(cwd);
+  const match = state.projects.find(p => normalize(p.path) === target);
   if (match) {
     selectProject(match.hash);
   } else {
@@ -1525,10 +1549,15 @@ function renderProjects() {
     // Inline sessions container
     html += '<div class="sidebar-project-sessions' + (expanded ? ' open' : '') + '" id="project-sessions-' + p.hash + '">';
     if (expanded && p._recentSessions) {
-      p._recentSessions.forEach(s => {
+      p._recentSessions.forEach((s, idx) => {
         const sid = s.session_id || '';
-        const short = sid.slice(0, 12) + '...';
-        html += '<div class="sidebar-project-session" onclick="event.stopPropagation();selectSessionDirect(\'' + escHtml(sid) + '\',\'' + p.hash + '\')">' + escHtml(short) + '</div>';
+        const short = sid.split('-')[0] || sid.slice(0, 12);
+        const sizeStr = s.size_kb ? (s.size_kb > 1024 ? (s.size_kb / 1024).toFixed(1) + 'MB' : s.size_kb + 'KB') : '';
+        const star = idx === 0 ? '&#11088; ' : '';
+        html += '<div class="sidebar-project-session" onclick="event.stopPropagation();selectSessionDirect(\'' + escHtml(sid) + '\',\'' + p.hash + '\')">' +
+          '<span>' + star + escHtml(short) + '</span>' +
+          (sizeStr ? '<span class="session-size-tag">' + sizeStr + '</span>' : '') +
+          '</div>';
       });
     }
     html += '</div>';
@@ -1602,13 +1631,13 @@ function renderSessions() {
     const ago = s.last_modified ? timeAgo(new Date(s.last_modified)) : '';
     const sizeStr = s.size_kb ? (s.size_kb > 1024 ? (s.size_kb / 1024).toFixed(1) + ' MB' : s.size_kb + ' KB') : '';
     const isLargest = idx === 0; // already sorted by size desc
-    const expanded = state.expandedSessions[s.session_id];
-    html += '<div class="session-card" onclick="toggleSessionPreview(\'' + s.session_id + '\')">' +
+    const shortId = s.session_id.split('-')[0] || s.session_id.slice(0, 12);
+    html += '<div class="session-card" onclick="selectSession(\'' + s.session_id + '\')">' +
       '<div class="session-status" style="background:' + statusColor + ';" title="' + statusText + '"></div>' +
       '<div class="session-body">' +
       '<div class="session-id">' +
       (isLargest ? '<span class="star-badge">&#11088;</span>' : '') +
-      escHtml(s.session_id.slice(0, 20)) + '...' +
+      escHtml(shortId) +
       '</div>' +
       '<div class="session-meta">' +
       '<span class="meta-item">' + statusText + '</span>' +
@@ -1619,25 +1648,9 @@ function renderSessions() {
       const sizeClass = s.size_kb && s.size_kb < 10 ? 'small' : '';
       html += '<div class="session-size-badge ' + sizeClass + '">' + sizeStr + '</div>';
     }
-    // Enter button
-    html += '<button class="session-enter" onclick="event.stopPropagation();selectSession(\'' + s.session_id + '\')">进入</button>';
     // Delete button
     html += '<button class="session-delete-btn" onclick="event.stopPropagation();deleteSession(\'' + s.session_id + '\')" title="删除">&#128465;</button>';
     html += '</div>';
-    // Preview section
-    if (expanded) {
-      html += '<div class="session-preview" id="session-preview-' + s.session_id + '">';
-      if (s._previewMessages) {
-        s._previewMessages.forEach(pm => {
-          const role = pm.type === 'user' ? '用户' : '助手';
-          const text = (pm.text || '').slice(0, 120);
-          html += '<div class="preview-msg"><div class="preview-role">' + role + '</div>' + escHtml(text) + (pm.text && pm.text.length > 120 ? '...' : '') + '</div>';
-        });
-      } else {
-        html += '<div style="text-align:center;padding:8px;"><div class="loading-spinner" style="width:20px;height:20px;margin:0 auto;"></div></div>';
-      }
-      html += '</div>';
-    }
   });
   html += '</div>';
   container.innerHTML = html;
