@@ -1,11 +1,14 @@
 """数据 API 路由"""
 import asyncio
 import json
+import logging
 import os
 import re
 import shutil
 import tempfile
 import time
+
+logger = logging.getLogger("cc_dashboard")
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -87,6 +90,16 @@ def get_messages(project_hash: str, session_id: str,
     _validate_id(project_hash, "project_hash")
     _validate_id(session_id, "session_id")
     messages = _get_reader().read_conversation(project_hash, session_id, last_n, offset)
+    # 统计消息结构
+    user_count = sum(1 for m in messages if m.get("type") == "user")
+    asst_count = sum(1 for m in messages if m.get("type") == "assistant")
+    tool_calls = sum(len(m.get("tool_uses", [])) for m in messages)
+    tool_results = sum(len(m.get("tool_results", [])) for m in messages)
+    has_text = sum(1 for m in messages if m.get("text", "").strip())
+    logger.info(f"[消息加载] session={session_id[:8]} 总={len(messages)} 用户={user_count} 助手={asst_count} 工具调用={tool_calls} 工具结果={tool_results} 有文本={has_text}")
+    # 打印前3条消息结构
+    for i, m in enumerate(messages[:3]):
+        logger.info(f"  [{i}] type={m.get('type')} text_len={len(m.get('text',''))} tool_uses={len(m.get('tool_uses',[]))} tool_results={len(m.get('tool_results',[]))}")
     return {"messages": messages, "count": len(messages)}
 
 

@@ -1856,13 +1856,8 @@ function renderMessages() {
     state._roundsInit = true;
   }
   let html = '';
-  console.log('[CCM] 轮次数:', rounds.length, '总消息:', state.messages.length);
   rounds.forEach((round, idx) => {
-    const rendered = renderRound(round, idx, rounds.length);
-    if (idx < 3 || idx >= rounds.length - 2) {
-      console.log('[CCM] 轮次', idx, 'expanded:', !!state.expandedRounds[idx], 'msgs:', round.messages.length, 'html长:', rendered.length);
-    }
-    html += rendered;
+    html += renderRound(round, idx, rounds.length);
   });
   // Busy indicator if last assistant message is still working
   const lastMsg = state.messages[state.messages.length - 1];
@@ -1928,7 +1923,6 @@ function renderRound(round, idx, totalRounds) {
   if (expanded) {
     const groups = groupMessages(round.messages);
     let inner = groups.map(renderGroup).join('');
-    console.log('[CCM] 轮次', idx, 'groups:', groups.length, 'inner长:', inner.length, '首条类型:', groups[0] && groups[0].type);
     return '<div class="round round-expanded" data-round="' + idx + '">' +
       '<div class="round-header" onclick="toggleRound(' + idx + ')">' +
       '<span class="round-arrow">&#9660;</span>' +
