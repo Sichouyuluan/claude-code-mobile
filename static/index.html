@@ -922,6 +922,13 @@ a:hover { text-decoration: underline; }
   transition: opacity var(--transition);
 }
 .load-more-link:hover { opacity: 0.8; text-decoration: underline; }
+.load-more-bar {
+  text-align: center; padding: 8px 16px;
+  font-size: 12px; color: var(--text-muted); cursor: pointer;
+  background: var(--glass-bg); border-bottom: 1px solid var(--glass-border);
+  transition: all 0.2s; flex-shrink: 0;
+}
+.load-more-bar:hover { background: var(--glass-bg-hover); color: var(--text); }
 /* Tool badge (kept for compatibility) — glass */
 .tool-badge {
   display: inline-flex; align-items: center; gap: 4px;
@@ -1206,6 +1213,9 @@ a:hover { text-decoration: underline; }
       <div class="dashboard" id="view-sessions" style="display:none;"></div>
       <!-- Conversation View -->
       <div class="conversation" id="view-conversation" style="display:none;">
+        <div class="load-more-bar" id="load-more-bar" style="display:none;" onclick="loadMoreMessages()">
+          <span id="load-more-text">加载更多历史消息...</span>
+        </div>
         <div class="messages-container" id="messages-container"></div>
         <div class="sse-typing-indicator" id="sse-typing-indicator">
           <div class="sse-typing-dots"><span></span><span></span><span></span></div>
@@ -1400,6 +1410,8 @@ function navigateTo(view, data) {
   }
   state.currentView = view;
   document.getElementById('session-id-bar').style.display = 'none';
+  const loadMoreBar = document.getElementById('load-more-bar');
+  if (loadMoreBar) loadMoreBar.style.display = 'none';
   document.getElementById('view-dashboard').style.display = view === 'dashboard' ? '' : 'none';
   document.getElementById('view-sessions').style.display = view === 'sessions' ? '' : 'none';
   document.getElementById('view-conversation').style.display = view === 'conversation' ? '' : 'none';
@@ -1742,9 +1754,10 @@ async function loadMessages() {
     state.messages = data.messages || [];
     // Always assume there are more messages until loadMore returns 0
     state.hasMoreMessages = state.messages.length > 0;
-    console.log('[CCM] 初始加载: 收到', state.messages.length, '条消息, 还有更多:', state.hasMoreMessages);
     state.autoScroll = true;
     renderMessages();
+    // Show/hide the fixed load-more bar
+    updateLoadMoreBar();
     // Start SSE stream for real-time updates
     connectSSE();
   } catch (err) {
@@ -1752,7 +1765,6 @@ async function loadMessages() {
   }
 }
 async function loadMoreMessages() {
-  console.log('[CCM] 加载更多消息被调用, 加载中:', state.loadingMore, '还有更多:', state.hasMoreMessages, '当前消息数:', state.messages.length);
   if (state.loadingMore || !state.hasMoreMessages) return;
   if (!state.messages.length) return;
   state.loadingMore = true;
@@ -1765,7 +1777,6 @@ async function loadMoreMessages() {
       '/messages?last_n=' + loadCount + '&offset=' + state.messages.length;
     const data = await apiFetch(url);
     const newMessages = data.messages || [];
-    console.log('[CCM] 加载更多API返回', newMessages.length, '条消息');
     if (newMessages.length === 0) {
       state.hasMoreMessages = false;
       showToast('已到最早的消息', 'info');
@@ -1775,6 +1786,7 @@ async function loadMoreMessages() {
       state.messages = [...newMessages, ...state.messages];
       if (newMessages.length < loadCount) {
         state.hasMoreMessages = false;
+        showToast('已加载全部历史消息', 'info');
       }
       // Disable auto-scroll before rendering to preserve scroll position
       state.autoScroll = false;
@@ -1782,10 +1794,33 @@ async function loadMoreMessages() {
       // Restore scroll position so user doesn't lose their place
       container.scrollTop = container.scrollHeight - prevHeight;
     }
+    updateLoadMoreBar();
   } catch (err) {
     showToast('加载更多失败: ' + err.message, 'error');
   }
   state.loadingMore = false;
+}
+function updateLoadMoreBar() {
+  const bar = document.getElementById('load-more-bar');
+  const text = document.getElementById('load-more-text');
+  if (!bar || !text) return;
+  if (state.currentView !== 'conversation') {
+    bar.style.display = 'none';
+    return;
+  }
+  if (state.loadingMore) {
+    bar.style.display = '';
+    text.textContent = '加载中...';
+  } else if (state.hasMoreMessages) {
+    bar.style.display = '';
+    text.textContent = '加载更多历史消息...';
+  } else if (state.messages.length > 0) {
+    bar.style.display = '';
+    text.textContent = '— 已到最早 —';
+    bar.style.cursor = 'default';
+  } else {
+    bar.style.display = 'none';
+  }
 }
 function renderMessages() {
   const container = document.getElementById('messages-container');
@@ -2060,13 +2095,10 @@ document.addEventListener('DOMContentLoaded', () => {
       // Auto-load more when scrolled near top
       if (mc.scrollTop < 100 && state.currentView === 'conversation' &&
           !state.loadingMore && state.hasMoreMessages && state.messages.length > 0) {
-        console.log('[CCM] 滚动到顶部触发，scrollTop:', mc.scrollTop, '还有更多:', state.hasMoreMessages);
         loadMoreMessages();
       }
     });
-    console.log('[CCM] 滚动监听已绑定到消息容器');
   } else {
-    console.log('[CCM] 页面加载时未找到消息容器');
   }
 });
 function autoResize(el) {
