@@ -348,6 +348,7 @@ a:hover { text-decoration: underline; }
   padding: 12px 16px; border-radius: 12px;
   font-size: 14px; line-height: 1.6;
   word-wrap: break-word; overflow-wrap: break-word;
+  min-width: 60px;
 }
 .message.user .message-bubble {
   background: var(--user-bubble); color: var(--user-text);
@@ -953,6 +954,10 @@ function renderMessages() {
 function renderMessage(m) {
   const isUser = m.type === 'user';
   const cls = isUser ? 'user' : 'assistant';
+  const hasText = m.text && m.text.trim();
+  const hasTools = m.tool_uses && m.tool_uses.length;
+  // Skip messages with no visible content
+  if (!hasText && !hasTools) return '';
   let html = '<div class="message ' + cls + '">';
   html += '<div class="message-header">';
   if (!isUser && m.model) {
@@ -963,12 +968,15 @@ function renderMessage(m) {
   }
   html += '</div>';
   html += '<div class="message-bubble">';
-  html += renderMarkdown(m.text || '');
-  if (m.tool_uses && m.tool_uses.length) {
-    html += '<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;">';
+  if (hasText) {
+    html += renderMarkdown(m.text);
+  }
+  if (hasTools) {
+    html += '<div' + (hasText ? ' style="margin-top:8px;"' : '') + ' style="display:flex;flex-wrap:wrap;gap:4px;">';
     m.tool_uses.forEach(t => {
-      const icon = toolIcon(t.name || t.tool || '');
-      html += '<span class="tool-badge">' + icon + ' ' + escHtml(t.name || t.tool || '工具') + '</span>';
+      const name = typeof t === 'string' ? t : (t.name || t.tool || '工具');
+      const icon = toolIcon(name);
+      html += '<span class="tool-badge">' + icon + ' ' + escHtml(name) + '</span>';
     });
     html += '</div>';
   }
