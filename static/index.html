@@ -403,6 +403,23 @@ a:hover { text-decoration: underline; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .topbar-actions { display: flex; gap: 8px; align-items: center; }
+.session-id-bar {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--glass-border);
+  border-radius: 6px; padding: 4px 10px; margin-left: auto;
+  max-width: 50%; min-width: 0;
+}
+.session-id-text {
+  font-family: 'Consolas', 'Monaco', monospace; font-size: 12px;
+  color: var(--text-muted); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.session-id-copy {
+  background: transparent; border: none; color: var(--text-muted);
+  cursor: pointer; font-size: 14px; padding: 2px; flex-shrink: 0;
+  border-radius: 4px; transition: all 0.2s;
+}
+.session-id-copy:hover { color: var(--text); background: var(--glass-bg-hover); }
 .dashboard { padding: 20px; overflow-y: auto; flex: 1; }
 .stats-grid {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -1150,6 +1167,10 @@ a:hover { text-decoration: underline; }
       <div class="topbar">
         <button class="hamburger" onclick="toggleSidebar()">&#9776;</button>
         <div class="topbar-title" id="topbar-title">工作区</div>
+        <div class="session-id-bar" id="session-id-bar" style="display:none;">
+          <span class="session-id-text" id="session-id-text"></span>
+          <button class="session-id-copy" onclick="copySessionId()" title="复制完整对话码">&#128203;</button>
+        </div>
         <div class="topbar-actions">
           <button class="btn btn-sm btn-secondary" id="back-btn" style="display:none;" onclick="goBack()">&#8592; 返回</button>
           <button class="btn btn-sm btn-secondary" id="refresh-btn" onclick="refreshCurrent()">&#8635; 刷新</button>
@@ -1294,6 +1315,10 @@ function copyStoredKey() {
   const key = localStorage.getItem('cc_api_key');
   copyToClipboard(key, '已复制到剪贴板');
 }
+function copySessionId() {
+  const sid = state.currentSession ? state.currentSession.session_id : '';
+  copyToClipboard(sid, '对话码已复制');
+}
 function updateFooterUrl() {
   const el = document.getElementById('footer-url');
   if (el) el.textContent = window.location.href;
@@ -1374,6 +1399,7 @@ function navigateTo(view, data) {
     disconnectSSE();
   }
   state.currentView = view;
+  document.getElementById('session-id-bar').style.display = 'none';
   document.getElementById('view-dashboard').style.display = view === 'dashboard' ? '' : 'none';
   document.getElementById('view-sessions').style.display = view === 'sessions' ? '' : 'none';
   document.getElementById('view-conversation').style.display = view === 'conversation' ? '' : 'none';
@@ -1386,6 +1412,15 @@ function navigateTo(view, data) {
     loadSessions();
   } else if (view === 'conversation') {
     document.getElementById('topbar-title').textContent = '对话';
+    const sidBar = document.getElementById('session-id-bar');
+    const sidText = document.getElementById('session-id-text');
+    if (state.currentSession && state.currentSession.session_id) {
+      sidText.textContent = state.currentSession.session_id;
+      sidText.title = state.currentSession.session_id;
+      sidBar.style.display = '';
+    } else {
+      sidBar.style.display = 'none';
+    }
     loadMessages();
   }
   closeSidebar();
