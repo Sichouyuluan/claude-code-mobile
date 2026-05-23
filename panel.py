@@ -79,7 +79,7 @@ class GlowButton(ctk.CTkButton):
 class Panel(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("CC Remote Dashboard")
+        self.title("claude-code-mobile")
         self.geometry("750x480")
         self.minsize(600, 400)
         self.configure(fg_color=BG)
@@ -100,7 +100,7 @@ class Panel(ctk.CTk):
         # Title bar
         title_frame = ctk.CTkFrame(self, fg_color="transparent")
         title_frame.pack(fill="x", padx=20, pady=(12, 0))
-        ctk.CTkLabel(title_frame, text="CC Remote Dashboard",
+        ctk.CTkLabel(title_frame, text="claude-code-mobile",
                      font=ctk.CTkFont(size=22, weight="bold"),
                      text_color=GLOW).pack(side="left")
         ctk.CTkLabel(title_frame, text="管理面板",
