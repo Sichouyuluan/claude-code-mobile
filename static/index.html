@@ -1677,17 +1677,14 @@ async function loadMoreMessages() {
   if (state.loadingMore || !state.hasMoreMessages) return;
   if (!state.messages.length) return;
   state.loadingMore = true;
-  const oldest = state.messages[0];
-  const beforeTs = oldest.timestamp || '';
   try {
     const url = '/api/projects/' + state.currentProject.hash + '/sessions/' + state.currentSession.session_id +
-      '/messages?last_n=' + state.messageLimit + (beforeTs ? '&before=' + encodeURIComponent(beforeTs) : '');
+      '/messages?last_n=' + state.messageLimit + '&offset=' + state.messages.length;
     const data = await apiFetch(url);
     const newMessages = data.messages || [];
     if (newMessages.length === 0) {
       state.hasMoreMessages = false;
     } else {
-      // Preserve scroll position
       const container = document.getElementById('messages-container');
       const prevHeight = container.scrollHeight;
       state.messages = [...newMessages, ...state.messages];
@@ -1695,7 +1692,6 @@ async function loadMoreMessages() {
         state.hasMoreMessages = false;
       }
       renderMessages();
-      // Restore scroll position
       container.scrollTop = container.scrollHeight - prevHeight;
     }
   } catch (err) {
@@ -1921,36 +1917,23 @@ async function sendMessage() {
       const formData = new FormData();
       formData.append('file', pendingFile);
       formData.append('message', text || '请分析这张图片');
-      // Show preview in messages before sending
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        state.messages.push({
-          type: 'user', text: text || '请分析这张图片',
-          timestamp: new Date().toISOString(),
-          image_url: e.target.result
-        });
-        state.autoScroll = true;
-        renderMessages();
-      };
-      reader.readAsDataURL(pendingFile);
       await apiFetch('/api/projects/' + state.currentProject.hash + '/sessions/' + state.currentSession.session_id + '/upload', {
         method: 'POST',
         body: formData,
         headers: { 'Authorization': 'Bearer ' + state.apiKey }
       });
       removePreview();
+      // Don't push message — SSE will deliver it
     } else {
       await apiFetch('/api/projects/' + state.currentProject.hash + '/sessions/' + state.currentSession.session_id + '/send', {
         method: 'POST',
         body: JSON.stringify({ message: text }),
         headers: { 'Content-Type': 'application/json' }
       });
-      state.messages.push({ type: 'user', text: text, timestamp: new Date().toISOString() });
+      // Don't push here — SSE stream will deliver the message from JSONL
     }
     input.value = '';
     input.style.height = 'auto';
-    state.autoScroll = true;
-    renderMessages();
     showToast('消息已发送', 'success');
     // SSE stream will deliver the response in real-time
   } catch (err) {
@@ -1970,6 +1953,13 @@ document.addEventListener('DOMContentLoaded', () => {
 function autoResize(el) {
   el.style.height = 'auto';
   el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+function safeUrl(url) {
+  const trimmed = url.trim().toLowerCase();
+  if (trimmed.startsWith('javascript:') || trimmed.startsWith('data:') || trimmed.startsWith('vbscript:')) {
+    return '#';
+  }
+  return url;
 }
 function renderMarkdown(text) {
   if (!text) return '';
@@ -2016,9 +2006,13 @@ function renderMarkdown(text) {
   // Horizontal rule
   html = html.replace(/^---+$/gm, '<hr>');
   // Links
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text, url) => {
+    return '<a href="' + safeUrl(url) + '" target="_blank" rel="noopener">' + text + '</a>';
+  });
   // Images
-  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;border-radius:8px;margin:8px 0;">');
+  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, url) => {
+    return '<img src="' + safeUrl(url) + '" alt="' + alt + '" style="max-width:100%;border-radius:8px;margin:8px 0;">';
+  });
   // Unordered lists
   html = html.replace(/(^|\n)((?:- .+\n?)+)/g, (_, pre, list) => {
     const items = list.trim().split('\n').map(i => '<li>' + i.replace(/^- /, '') + '</li>').join('');
