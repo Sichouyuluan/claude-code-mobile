@@ -3,6 +3,12 @@ import json, os, time
 from collections import deque
 from pathlib import Path
 
+# Permission-related keywords for detecting CC permission prompts
+_PERM_KEYWORDS = (
+    "allow", "reject", "approve", "deny", "permission",
+    "允许", "拒绝", "批准", "授权",
+)
+
 
 class ClaudeReader:
     def __init__(self, claude_home=None):
@@ -106,13 +112,111 @@ class ClaudeReader:
         except Exception:
             return {}
 
-    def read_conversation(self, project_hash, session_id, last_n=50):
+    def get_cc_status(self):
+        """Detect if CC is busy or idle by checking:
+        - Lock files in sessions/ directory (pid.json files with recent timestamps)
+        - The last message in each active session's JSONL
+        - If last assistant message has stop_reason='tool_use', CC is busy
+        - If last message is user, CC is processing
+        - Otherwise CC is idle
+        Return: list of {session_id, cwd, status: 'busy'|'idle'|'waiting', last_activity}
+        """
+        results = []
+        if not self.sessions_dir.exists():
+            return results
+        for pid_file in self.sessions_dir.glob("*.json"):
+            try:
+                pid = int(pid_file.stem)
+            except ValueError:
+                continue
+            info = self._read_session_json(pid)
+            if not info:
+                continue
+            session_id = info.get("sessionId", "")
+            cwd = info.get("cwd", "")
+            last_activity = time.strftime(
+                "%Y-%m-%dT%H:%M:%SZ",
+                time.gmtime(pid_file.stat().st_mtime),
+            )
+            status = self._determine_session_status(pid, session_id, cwd)
+            results.append({
+                "session_id": session_id,
+                "cwd": cwd,
+                "status": status,
+                "last_activity": last_activity,
+            })
+        return results
+
+    def _determine_session_status(self, pid, session_id, cwd):
+        """Determine a single session's status from its JSONL last line."""
+        if not session_id:
+            return "idle"
+        # Find the JSONL file: match by session_id in any project directory
+        jsonl_path = None
+        if self.projects_dir.exists():
+            for proj_dir in self.projects_dir.iterdir():
+                if not proj_dir.is_dir():
+                    continue
+                candidate = proj_dir / f"{session_id}.jsonl"
+                if candidate.exists():
+                    jsonl_path = candidate
+                    break
+        if not jsonl_path:
+            return "waiting" if self._is_running(pid) else "idle"
+        try:
+            last_line = self._read_last_line(jsonl_path)
+            if not last_line:
+                return "idle"
+            obj = json.loads(last_line)
+            t = obj.get("type")
+            if t == "user":
+                return "waiting"
+            if t == "assistant":
+                msg = obj.get("message", {})
+                if msg.get("stop_reason") == "tool_use":
+                    return "busy"
+                return "idle"
+        except Exception:
+            pass
+        return "idle"
+
+    def _read_last_line(self, filepath):
+        """Read the last non-empty line from a file efficiently."""
+        try:
+            with open(filepath, "rb") as f:
+                f.seek(0, 2)  # seek to end
+                fsize = f.tell()
+                if fsize == 0:
+                    return None
+                # Read last 8KB max, then take last line
+                read_size = min(8192, fsize)
+                f.seek(-read_size, 2)
+                data = f.read().decode("utf-8", errors="replace")
+                lines = [l for l in data.splitlines() if l.strip()]
+                return lines[-1] if lines else None
+        except Exception:
+            return None
+
+    def read_conversation(self, project_hash, session_id, last_n=50, offset=0):
+        """Read messages with pagination.
+        offset=0 means latest, offset=N means skip the latest N lines.
+        Returns at most `last_n` parsed messages from the tail after skipping `offset` lines.
+        """
         p = self.projects_dir / project_hash / f"{session_id}.jsonl"
         if not p.exists():
             return []
         try:
-            with open(p, "r", encoding="utf-8", errors="replace") as f:
-                lines = list(deque(f, maxlen=last_n))
+            if offset == 0:
+                # Fast path: only need the tail
+                with open(p, "r", encoding="utf-8", errors="replace") as f:
+                    lines = list(deque(f, maxlen=last_n))
+            else:
+                # Read all lines, then slice: skip `offset` from the end, take `last_n`
+                with open(p, "r", encoding="utf-8", errors="replace") as f:
+                    all_lines = f.readlines()
+                # Remove offset lines from the end, then take last_n
+                trimmed = all_lines[:len(all_lines) - offset] if offset < len(all_lines) else []
+                lines = trimmed[-last_n:] if last_n else trimmed
         except Exception:
             return []
         return self._parse(lines)
@@ -173,6 +277,13 @@ class ClaudeReader:
             pass
         return {}
 
+    def _read_meta_from_session(self, project_hash, session_id):
+        """Read metadata from a session's JSONL by project hash and session id."""
+        p = self.projects_dir / project_hash / f"{session_id}.jsonl"
+        if not p.exists():
+            return {}
+        return self._read_meta(p)
+
     def _is_running(self, pid):
         try:
             import psutil
@@ -209,5 +320,35 @@ class ClaudeReader:
                 parsed["model"] = msg.get("model", "")
                 parsed["tool_uses"] = tools
                 parsed["tokens"] = msg.get("usage", {})
+            # Detect permission dialog in user messages
+            if t == "user" and self._detect_permission(content, text_parts):
+                parsed["is_permission_prompt"] = True
+                parsed["permission_tool"] = tools[0] if tools else ""
             messages.append(parsed)
         return messages
+
+    @staticmethod
+    def _detect_permission(content_blocks, text_parts):
+        """Check if a user message is a permission dialog from CC.
+        Returns True if permission-related keywords are found in the content.
+        """
+        for block in content_blocks:
+            if isinstance(block, dict):
+                block_type = block.get("type", "")
+                # CC permission prompts often have type 'human' or contain approval buttons
+                if block_type in ("human", "permission_request"):
+                    return True
+                text = (block.get("text") or "").lower()
+                if any(kw in text for kw in _PERM_KEYWORDS):
+                    return True
+            elif isinstance(block, str):
+                if any(kw in block.lower() for kw in _PERM_KEYWORDS):
+                    return True
+        for txt in text_parts:
+            lower = txt.lower()
+            # Match patterns like "Claude wants to" + permission keyword
+            if ("wants to" in lower or "请求" in lower) and any(kw in lower for kw in _PERM_KEYWORDS):
+                return True
+            if any(f"{kw}?" in lower or f"{kw}：" in lower or f"{kw}:" in lower for kw in _PERM_KEYWORDS):
+                return True
+        return False

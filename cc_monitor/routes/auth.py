@@ -1,6 +1,7 @@
 """认证路由 — 登录/登出/session cookie 管理"""
 import hmac
 import hashlib
+import os
 import time
 import base64
 import secrets
@@ -93,3 +94,30 @@ async def logout():
 @router.get("/api/auth/check")
 async def auth_check(request: Request):
     return {"authenticated": check_auth(request)}
+
+
+class ChangeKeyRequest(BaseModel):
+    current_key: str
+    new_key: str
+
+
+@router.post("/api/auth/change-key")
+async def change_api_key(req: ChangeKeyRequest, request: Request):
+    """Change the API key. Requires current key + new key."""
+    require_auth(request)
+    if not hmac.compare_digest(req.current_key.strip(), app_state.api_key):
+        raise HTTPException(status_code=403, detail="当前 API Key 无效")
+    new_key = req.new_key.strip()
+    if len(new_key) < 8:
+        raise HTTPException(status_code=400, detail="新 API Key 至少 8 个字符")
+    # Save new key to .api_key file
+    try:
+        from cc_monitor.config import get_project_root
+        key_file = os.path.join(get_project_root(), ".api_key")
+        with open(key_file, "w") as f:
+            f.write(new_key)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"保存失败: {e}")
+    # Update in-memory state
+    app_state.api_key = new_key
+    return {"success": True, "message": "API Key 已更新"}

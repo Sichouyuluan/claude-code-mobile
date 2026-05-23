@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>claude-code-mobile</title>
+<title>CCM</title>
 <style>
 :root {
   --transition: 0.2s ease;
@@ -326,57 +326,260 @@ a:hover { text-decoration: underline; }
 .session-card:hover .session-enter {
   background: var(--accent); color: #fff; border-color: var(--accent);
 }
+/* Session size badge */
+.session-size-badge {
+  flex-shrink: 0; padding: 6px 12px; border-radius: 8px;
+  background: var(--bg); border: 1px solid var(--border);
+  font-size: 14px; font-weight: 700; color: var(--accent);
+  font-family: 'SF Mono', monospace; text-align: center; min-width: 70px;
+}
+.session-size-badge.small { font-size: 12px; color: var(--text-muted); }
+/* Star badge */
+.star-badge {
+  color: #f59e0b; font-size: 16px; margin-right: 4px;
+}
+/* Delete button */
+.session-delete-btn {
+  flex-shrink: 0; width: 32px; height: 32px; border-radius: 6px;
+  border: 1px solid var(--border); background: transparent;
+  color: var(--text-muted); cursor: pointer; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--transition);
+}
+.session-delete-btn:hover {
+  background: var(--error); color: #fff; border-color: var(--error);
+}
+/* Session preview */
+.session-preview {
+  margin-top: 8px; padding: 10px 14px; border-radius: 8px;
+  background: var(--bg); border: 1px solid var(--border);
+  font-size: 12px; color: var(--text-secondary);
+  max-height: 160px; overflow-y: auto;
+}
+.session-preview .preview-msg {
+  padding: 4px 0; border-bottom: 1px solid var(--border);
+  line-height: 1.4;
+}
+.session-preview .preview-msg:last-child { border-bottom: none; }
+.session-preview .preview-role {
+  font-weight: 600; color: var(--text-muted); font-size: 11px;
+  text-transform: uppercase; margin-bottom: 2px;
+}
+/* Project path header */
+.project-path-header {
+  padding: 12px 16px; margin-bottom: 12px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; font-size: 12px;
+  color: var(--text-muted); font-family: 'SF Mono', monospace;
+  display: flex; align-items: center; gap: 8px;
+  word-break: break-all;
+}
+.project-path-header .path-icon { font-size: 14px; flex-shrink: 0; }
+/* Sidebar project expand */
+.sidebar-project-arrow {
+  font-size: 10px; color: var(--text-muted); flex-shrink: 0;
+  transition: transform 0.2s; cursor: pointer; padding: 4px;
+  border-radius: 4px;
+}
+.sidebar-project-arrow:hover { background: var(--surface-hover); }
+.sidebar-project-arrow.expanded { transform: rotate(180deg); }
+.sidebar-project-sessions {
+  display: none; padding: 0 8px 4px 28px;
+}
+.sidebar-project-sessions.open { display: block; }
+.sidebar-project-session {
+  font-size: 12px; padding: 6px 8px; border-radius: 6px;
+  cursor: pointer; color: var(--text-secondary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: background var(--transition);
+}
+.sidebar-project-session:hover { background: var(--surface-hover); color: var(--text); }
 .conversation {
   flex: 1; display: flex; flex-direction: column; overflow: hidden;
 }
 .messages-container {
   flex: 1; overflow-y: auto; padding: 20px;
-  display: flex; flex-direction: column; gap: 16px;
-}
-.message {
   display: flex; flex-direction: column;
-  max-width: 85%; width: fit-content;
-  animation: msgIn 0.2s ease;
 }
-.message.user { align-self: flex-end; }
-.message.assistant { align-self: flex-start; width: 100%; max-width: 85%; }
+/* Message groups - continuous flow */
+.message-group {
+  margin-bottom: 16px; animation: msgIn 0.2s ease;
+}
+.message-group.user {
+  align-self: flex-end; max-width: 85%; width: fit-content;
+}
+.message-group.assistant {
+  width: 100%; max-width: 85%;
+}
 @keyframes msgIn { from { opacity: 0; transform: translateY(8px); } }
-.message-header {
-  font-size: 11px; color: var(--text-muted);
-  margin-bottom: 4px; display: flex; align-items: center; gap: 8px;
-}
-.message.user .message-header { justify-content: flex-end; }
-.message-bubble {
+/* User group bubble */
+.group-bubble-user {
   padding: 12px 16px; border-radius: 12px;
-  font-size: 14px; line-height: 1.6;
-  word-wrap: break-word; overflow-wrap: break-word;
-  min-width: 60px; width: 100%;
-  box-sizing: border-box;
-}
-.message.user .message-bubble {
   background: var(--user-bubble); color: var(--user-text);
   border-bottom-right-radius: 4px;
+  font-size: 14px; line-height: 1.6;
+  word-wrap: break-word; overflow-wrap: break-word;
 }
-.message.assistant .message-bubble {
-  background: var(--assistant-bubble); color: var(--assistant-text);
-  border: 1px solid var(--border);
-  border-bottom-left-radius: 4px;
+.group-bubble-user p { margin-bottom: 8px; }
+.group-bubble-user p:last-child { margin-bottom: 0; }
+.group-bubble-user code {
+  background: rgba(255,255,255,0.15); padding: 2px 6px; border-radius: 4px;
+  font-size: 13px;
 }
-.message-bubble p { margin-bottom: 8px; }
-.message-bubble p:last-child { margin-bottom: 0; }
-.message-bubble code {
+.group-bubble-user pre {
+  background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;
+  overflow-x: auto; margin: 8px 0; font-size: 13px;
+}
+.group-bubble-user pre code { background: transparent; padding: 0; }
+.group-bubble-user a { color: #93c5fd; }
+/* Assistant group - continuous flow, no bubble */
+.group-content {
+  font-size: 14px; line-height: 1.7;
+  color: var(--assistant-text);
+}
+.group-content p { margin-bottom: 8px; }
+.group-content p:last-child { margin-bottom: 0; }
+.group-content code {
   background: var(--code-bg); padding: 2px 6px; border-radius: 4px;
   font-size: 13px;
 }
-.message-bubble pre {
+.group-content pre {
   background: var(--code-bg); padding: 12px; border-radius: 8px;
   overflow-x: auto; margin: 8px 0; font-size: 13px;
 }
-.message-bubble pre code { background: transparent; padding: 0; }
-.message-bubble strong { font-weight: 600; }
-.message-bubble em { font-style: italic; }
-.message-bubble ul, .message-bubble ol { padding-left: 20px; margin: 6px 0; }
-.message-bubble li { margin-bottom: 2px; }
+.group-content pre code { background: transparent; padding: 0; }
+.group-content strong { font-weight: 600; }
+.group-content em { font-style: italic; }
+.group-content ul, .group-content ol { padding-left: 20px; margin: 6px 0; }
+.group-content li { margin-bottom: 2px; }
+.group-content h2, .group-content h3, .group-content h4 {
+  margin: 12px 0 6px;
+}
+.group-content h2 { font-size: 18px; }
+.group-content h3 { font-size: 16px; }
+.group-content h4 { font-size: 14px; }
+.group-content blockquote {
+  border-left: 3px solid var(--accent); padding: 4px 12px;
+  margin: 8px 0; color: var(--text-secondary);
+}
+.group-content hr {
+  border: none; border-top: 1px solid var(--border); margin: 12px 0;
+}
+.group-content img {
+  max-width: 100%; border-radius: 8px; margin: 8px 0;
+}
+/* Markdown tables */
+.group-content table, .group-bubble-user table {
+  border-collapse: collapse; width: 100%; margin: 8px 0;
+  font-size: 13px;
+}
+.group-content th, .group-content td,
+.group-bubble-user th, .group-bubble-user td {
+  border: 1px solid var(--border); padding: 8px 12px;
+  text-align: left;
+}
+.group-content th, .group-bubble-user th {
+  background: var(--surface); font-weight: 600;
+  color: var(--text-secondary); font-size: 12px;
+  text-transform: uppercase; letter-spacing: 0.03em;
+}
+.group-content td, .group-bubble-user td {
+  background: var(--bg);
+}
+.group-content tr:hover td, .group-bubble-user tr:hover td {
+  background: var(--surface-hover);
+}
+/* Group timestamp */
+.group-timestamp {
+  font-size: 11px; color: var(--text-muted);
+  margin-top: 6px; padding-left: 2px;
+}
+.message-group.user .group-timestamp {
+  text-align: right; padding-right: 2px;
+}
+/* Thinking block */
+.thinking-block {
+  margin: 8px 0; border-radius: 8px;
+  border: 1px solid var(--border); overflow: hidden;
+}
+.thinking-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px; cursor: pointer;
+  font-size: 12px; color: var(--text-muted);
+  background: var(--bg); user-select: none;
+  transition: background var(--transition);
+}
+.thinking-header:hover { background: var(--surface-hover); color: var(--text); }
+.thinking-header .arrow {
+  transition: transform 0.2s; font-size: 10px;
+}
+.thinking-header.open .arrow { transform: rotate(90deg); }
+.thinking-content {
+  display: none; padding: 10px 14px;
+  font-size: 13px; color: var(--text-secondary);
+  line-height: 1.6; background: var(--bg);
+  max-height: 300px; overflow-y: auto;
+}
+.thinking-content.open { display: block; }
+/* Tool call badge */
+.tool-call-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 6px; font-size: 12px;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text-secondary); margin: 4px 2px;
+  font-weight: 500;
+}
+/* Tool result collapsible */
+.tool-result-block {
+  margin: 6px 0; border-radius: 8px;
+  border: 1px solid var(--border); overflow: hidden;
+}
+.tool-result-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px; cursor: pointer;
+  font-size: 12px; color: var(--text-muted);
+  background: var(--bg); user-select: none;
+  transition: background var(--transition);
+}
+.tool-result-header:hover { background: var(--surface-hover); color: var(--text); }
+.tool-result-header .arrow {
+  transition: transform 0.2s; font-size: 10px;
+}
+.tool-result-header.open .arrow { transform: rotate(90deg); }
+.tool-result-content {
+  display: none; padding: 8px 12px;
+  font-size: 12px; color: var(--text-secondary);
+  background: var(--bg); max-height: 200px; overflow-y: auto;
+}
+.tool-result-content.open { display: block; }
+.tool-result-content pre {
+  background: var(--code-bg); padding: 8px; border-radius: 6px;
+  overflow-x: auto; font-size: 12px; margin: 0;
+  white-space: pre-wrap; word-break: break-all;
+}
+/* Busy indicator */
+.busy-indicator {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 0; color: var(--accent); font-size: 13px;
+  font-weight: 500;
+}
+.busy-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent);
+  animation: busyPulse 1.4s ease-in-out infinite;
+}
+@keyframes busyPulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+/* Load more */
+.load-more-link {
+  text-align: center; padding: 12px;
+  font-size: 13px; color: var(--accent); cursor: pointer;
+  transition: opacity var(--transition);
+}
+.load-more-link:hover { opacity: 0.8; text-decoration: underline; }
+/* Tool badge (kept for compatibility) */
 .tool-badge {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 2px 8px; border-radius: 6px; font-size: 11px;
@@ -391,7 +594,7 @@ a:hover { text-decoration: underline; }
 .message-input-area {
   padding: 12px 20px; border-top: 1px solid var(--border);
   background: var(--sidebar-bg);
-  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 20px));
 }
 .input-row {
   display: flex; align-items: flex-end; gap: 8px;
@@ -474,8 +677,15 @@ a:hover { text-decoration: underline; }
   .stat-card { padding: 14px; }
   .stat-card .stat-value { font-size: 22px; }
   .messages-container { padding: 12px; }
-  .message { max-width: 92%; width: fit-content; }
+  .message-group.user { max-width: 92%; }
+  .message-group.assistant { max-width: 92%; }
   .session-card { padding: 14px 16px; }
+  .message-input-area {
+    padding-bottom: max(16px, env(safe-area-inset-bottom, 28px));
+  }
+  .input-row textarea {
+    min-height: 48px;
+  }
 }
 @media (max-width: 400px) {
   .stats-grid { grid-template-columns: 1fr; }
@@ -491,14 +701,14 @@ a:hover { text-decoration: underline; }
 <div id="login-page">
   <div class="login-card">
     <span class="logo-icon">&#9679;</span>
-    <h1>claude-code-mobile</h1>
+    <h1>CCM</h1>
     <p class="subtitle">远程监控 Claude Code 工作状态</p>
     <form id="login-form" onsubmit="return handleLogin(event)">
       <div class="input-group">
         <label for="api-key-input">密钥</label>
         <div class="input-with-btn">
           <input type="password" id="api-key-input" placeholder="输入你的密钥" autocomplete="off" />
-          <button type="button" class="btn-copy-key" onclick="copyLoginKey()">复制密钥</button>
+          <button type="button" class="btn-copy-key" onclick="pasteLoginKey()">粘贴</button>
         </div>
       </div>
       <button type="submit" class="btn btn-primary" id="login-btn">登录</button>
@@ -514,7 +724,7 @@ a:hover { text-decoration: underline; }
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
-        <h2>CC 监控面板</h2>
+        <h2>CCM</h2>
         <button class="btn-icon" onclick="toggleTheme()" id="theme-btn" title="切换主题">&#9790;</button>
       </div>
       <div class="sidebar-content" id="sidebar-content">
@@ -533,7 +743,7 @@ a:hover { text-decoration: underline; }
       </div>
       <div class="sidebar-footer">
         <div class="sidebar-footer-row">
-          <span class="version">CC Remote v1.0</span>
+          <span class="version">CCM v1.0</span>
           <button class="btn-icon" onclick="handleLogout()" title="退出" style="font-size:14px;">&#8594;</button>
         </div>
       </div>
@@ -573,13 +783,6 @@ a:hover { text-decoration: underline; }
             <div class="stat-sub">活跃窗口</div>
           </div>
         </div>
-        <div class="section-title">运行中的进程</div>
-        <div class="process-list" id="process-list">
-          <div style="display:flex;align-items:center;gap:12px;padding:20px;">
-            <div class="loading-spinner"></div>
-            <span style="color:var(--text-muted);font-size:14px;">加载中...</span>
-          </div>
-        </div>
       </div>
       <!-- Sessions List View -->
       <div class="dashboard" id="view-sessions" style="display:none;"></div>
@@ -617,7 +820,12 @@ const state = {
   systemInfo: null,
   autoScroll: true,
   currentView: 'dashboard',
-  refreshTimers: []
+  refreshTimers: [],
+  messageLimit: 20,
+  hasMoreMessages: true,
+  loadingMore: false,
+  expandedProjects: {},
+  expandedSessions: {}
 };
 document.addEventListener('DOMContentLoaded', () => {
   const savedKey = localStorage.getItem('cc_api_key');
@@ -659,16 +867,16 @@ function copyToClipboard(text, successMsg) {
     showToast('复制失败', 'error');
   });
 }
-function copyLoginKey() {
-  const input = document.getElementById('api-key-input');
-  const val = input.value.trim();
-  if (!val) {
-    const stored = localStorage.getItem('cc_api_key');
-    if (stored) { copyToClipboard(stored, '已复制到剪贴板'); }
-    else { showToast('请先输入密钥', 'error'); }
-    return;
+async function pasteLoginKey() {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (text) {
+      document.getElementById('api-key-input').value = text;
+      showToast('已粘贴', 'success');
+    }
+  } catch {
+    showToast('无法读取剪贴板，请手动粘贴', 'error');
   }
-  copyToClipboard(val, '已复制到剪贴板');
 }
 function copyCurrentUrl() {
   copyToClipboard(window.location.href, '已复制到剪贴板');
@@ -757,10 +965,10 @@ function navigateTo(view, data) {
   document.getElementById('view-conversation').style.display = view === 'conversation' ? '' : 'none';
   document.getElementById('back-btn').style.display = view !== 'dashboard' ? '' : 'none';
   if (view === 'dashboard') {
-    document.getElementById('topbar-title').textContent = '工作区';
+    document.getElementById('topbar-title').textContent = 'CCM';
     loadSystemInfo();
   } else if (view === 'sessions') {
-    document.getElementById('topbar-title').textContent = '会话';
+    document.getElementById('topbar-title').textContent = state.currentProject ? shortPath(displayPath(state.currentProject.path) || decodeHash(state.currentProject.hash)) : '会话';
     loadSessions();
   } else if (view === 'conversation') {
     document.getElementById('topbar-title').textContent = '对话';
@@ -822,19 +1030,6 @@ function renderSystemInfo(d) {
   document.getElementById('stat-vscode').textContent = d.vscode_count ?? '--';
   setProgressBar('bar-cpu', cpu);
   setProgressBar('bar-mem', mem);
-  const list = document.getElementById('process-list');
-  const procs = d.cc_processes || [];
-  if (procs.length === 0) {
-    list.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:14px;">没有运行中的 CC 进程</div>';
-    return;
-  }
-  list.innerHTML = procs.map(p =>
-    '<div class="process-item">' +
-    '<span class="pid">' + (p.pid || '--') + '</span>' +
-    '<span class="dot dot-active"></span>' +
-    '<span class="cmd">' + escHtml(p.cmd || p.command || 'claude-code') + '</span>' +
-    '</div>'
-  ).join('');
 }
 function setProgressBar(id, pct) {
   const el = document.getElementById(id);
@@ -856,14 +1051,28 @@ function renderActiveSessions() {
     return;
   }
   section.style.display = '';
-  list.innerHTML = state.activeSessions.map(a =>
-    '<div class="sidebar-item">' +
-    '<span class="dot dot-active"></span>' +
-    '<div class="item-info">' +
-    '<div class="item-path">PID ' + (a.pid || '?') + '</div>' +
-    '<div class="item-meta">' + (a.running ? '运行中' : '空闲') + '</div>' +
-    '</div></div>'
-  ).join('');
+  list.innerHTML = state.activeSessions.map(a => {
+    const cwd = a.cwd || a.project_path || '';
+    const projectName = cwd ? cwd.replace(/\\/g, '/').split('/').filter(Boolean).pop() || cwd : ('PID ' + (a.pid || '?'));
+    const subtitle = cwd || (a.running ? '运行中' : '空闲');
+    const projectHash = a.project_hash || '';
+    const onclick = projectHash ? 'onclick="selectProject(\'' + escHtml(projectHash) + '\')"' :
+      cwd ? 'onclick="selectProjectByPath(\'' + escHtml(cwd) + '\')"' : '';
+    return '<div class="sidebar-item" ' + onclick + '>' +
+      '<span class="dot dot-active"></span>' +
+      '<div class="item-info">' +
+      '<div class="item-path">' + escHtml(projectName) + '</div>' +
+      '<div class="item-meta" title="' + escHtml(subtitle) + '">' + escHtml(shortPath(subtitle)) + '</div>' +
+      '</div></div>';
+  }).join('');
+}
+function selectProjectByPath(cwd) {
+  const match = state.projects.find(p => p.path === cwd || p.path === cwd.replace(/\//g, '\\'));
+  if (match) {
+    selectProject(match.hash);
+  } else {
+    showToast('未找到对应工作区', 'error');
+  }
 }
 async function loadProjects() {
   try {
@@ -886,20 +1095,57 @@ function renderProjects() {
     const fullPath = displayPath(p.path) || decodeHash(p.hash);
     const shortName = fullPath.replace(/\\/g, '/').split('/').filter(Boolean).pop() || fullPath;
     const sessionCount = p.session_count || 0;
-    return '<div class="sidebar-item' + (active ? ' active' : '') + '" onclick="selectProject(\'' + p.hash + '\')">' +
+    const expanded = state.expandedProjects[p.hash];
+    let html = '<div class="sidebar-item' + (active ? ' active' : '') + '" onclick="selectProject(\'' + p.hash + '\')">' +
       '<span class="dot ' + dotClass + '"></span>' +
       '<div class="item-info">' +
       '<div class="item-path" title="' + escHtml(fullPath) + '">' + escHtml(shortName) + '</div>' +
       '<div class="item-meta">' + sessionCount + ' 个会话</div>' +
-      '</div>' +
-      (sessionCount > 0 ? '<span style="background:var(--accent);color:#fff;font-size:11px;padding:2px 7px;border-radius:10px;font-weight:600;">' + sessionCount + '</span>' : '') +
       '</div>';
+    if (sessionCount > 0) {
+      html += '<span class="sidebar-project-arrow' + (expanded ? ' expanded' : '') + '" onclick="event.stopPropagation();toggleProjectExpand(\'' + p.hash + '\')">&#9660;</span>';
+    }
+    html += '</div>';
+    // Inline sessions container
+    html += '<div class="sidebar-project-sessions' + (expanded ? ' open' : '') + '" id="project-sessions-' + p.hash + '">';
+    if (expanded && p._recentSessions) {
+      p._recentSessions.forEach(s => {
+        const sid = s.session_id || '';
+        const short = sid.slice(0, 12) + '...';
+        html += '<div class="sidebar-project-session" onclick="event.stopPropagation();selectSessionDirect(\'' + escHtml(sid) + '\',\'' + p.hash + '\')">' + escHtml(short) + '</div>';
+      });
+    }
+    html += '</div>';
+    return html;
   }).join('');
+}
+async function toggleProjectExpand(hash) {
+  const expanded = !state.expandedProjects[hash];
+  state.expandedProjects[hash] = expanded;
+  if (expanded) {
+    const proj = state.projects.find(p => p.hash === hash);
+    if (proj && !proj._recentSessions) {
+      try {
+        const data = await apiFetch('/api/projects/' + hash + '/sessions');
+        const sessions = (data.sessions || []).sort((a, b) => (b.size_kb || 0) - (a.size_kb || 0));
+        proj._recentSessions = sessions.slice(0, 3);
+      } catch {
+        proj._recentSessions = [];
+      }
+    }
+  }
+  renderProjects();
 }
 function selectProject(hash) {
   state.currentProject = state.projects.find(p => p.hash === hash) || null;
   renderProjects();
   navigateTo('sessions');
+}
+function selectSessionDirect(sid, projectHash) {
+  state.currentProject = state.projects.find(p => p.hash === projectHash) || null;
+  if (!state.currentProject) return;
+  state.currentSession = { session_id: sid };
+  navigateTo('conversation');
 }
 async function loadSessions() {
   if (!state.currentProject) return;
@@ -907,7 +1153,7 @@ async function loadSessions() {
   container.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:20px;"><div class="loading-spinner"></div><span style="color:var(--text-muted);font-size:14px;">加载会话中...</span></div>';
   try {
     const data = await apiFetch('/api/projects/' + state.currentProject.hash + '/sessions');
-    state.sessions = data.sessions || [];
+    state.sessions = (data.sessions || []).sort((a, b) => (b.size_kb || 0) - (a.size_kb || 0));
     renderSessions();
   } catch (err) {
     container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><h3>加载失败</h3><p>' + escHtml(err.message) + '</p></div>';
@@ -924,48 +1170,141 @@ function renderSessions() {
       '</div>';
     return;
   }
+  // Project path header
+  const projPath = state.currentProject ? (displayPath(state.currentProject.path) || decodeHash(state.currentProject.hash)) : '';
   let html = '<div style="padding:20px;">';
+  if (projPath) {
+    html += '<div class="project-path-header"><span class="path-icon">&#128193;</span>' + escHtml(projPath) + '</div>';
+  }
   html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">';
-  html += '<div class="section-title" style="margin:0;">会话列表</div>';
+  html += '<div class="section-title" style="margin:0;">会话列表 (' + state.sessions.length + ')</div>';
   html += '<button class="btn btn-sm btn-primary" onclick="showNewSessionDialog()">+ 新会话</button>';
   html += '</div>';
-  state.sessions.forEach(s => {
+  state.sessions.forEach((s, idx) => {
     const statusColor = s.status === 'active' ? 'var(--success)' : (s.status === 'recent' ? 'var(--warning)' : 'var(--text-muted)');
     const statusText = s.status === 'active' ? '活跃' : (s.status === 'recent' ? '最近' : '空闲');
     const ago = s.last_modified ? timeAgo(new Date(s.last_modified)) : '';
     const sizeStr = s.size_kb ? (s.size_kb > 1024 ? (s.size_kb / 1024).toFixed(1) + ' MB' : s.size_kb + ' KB') : '';
-    html += '<div class="session-card" onclick="selectSession(\'' + s.session_id + '\')">' +
+    const isLargest = idx === 0; // already sorted by size desc
+    const expanded = state.expandedSessions[s.session_id];
+    html += '<div class="session-card" onclick="toggleSessionPreview(\'' + s.session_id + '\')">' +
       '<div class="session-status" style="background:' + statusColor + ';" title="' + statusText + '"></div>' +
       '<div class="session-body">' +
-      '<div class="session-id">' + escHtml(s.session_id.slice(0, 20)) + '...</div>' +
+      '<div class="session-id">' +
+      (isLargest ? '<span class="star-badge">&#11088;</span>' : '') +
+      escHtml(s.session_id.slice(0, 20)) + '...' +
+      '</div>' +
       '<div class="session-meta">' +
       '<span class="meta-item">' + statusText + '</span>' +
-      (sizeStr ? '<span class="meta-item">' + sizeStr + '</span>' : '') +
       (ago ? '<span class="meta-item">' + ago + '</span>' : '') +
-      '</div></div>' +
-      '<span class="session-enter">进入对话</span>' +
-      '<span class="session-arrow">&#8594;</span>' +
-      '</div>';
+      '</div></div>';
+    // Size badge
+    if (sizeStr) {
+      const sizeClass = s.size_kb && s.size_kb < 10 ? 'small' : '';
+      html += '<div class="session-size-badge ' + sizeClass + '">' + sizeStr + '</div>';
+    }
+    // Enter button
+    html += '<button class="session-enter" onclick="event.stopPropagation();selectSession(\'' + s.session_id + '\')">进入</button>';
+    // Delete button
+    html += '<button class="session-delete-btn" onclick="event.stopPropagation();deleteSession(\'' + s.session_id + '\')" title="删除">&#128465;</button>';
+    html += '</div>';
+    // Preview section
+    if (expanded) {
+      html += '<div class="session-preview" id="session-preview-' + s.session_id + '">';
+      if (s._previewMessages) {
+        s._previewMessages.forEach(pm => {
+          const role = pm.type === 'user' ? '用户' : '助手';
+          const text = (pm.text || '').slice(0, 120);
+          html += '<div class="preview-msg"><div class="preview-role">' + role + '</div>' + escHtml(text) + (pm.text && pm.text.length > 120 ? '...' : '') + '</div>';
+        });
+      } else {
+        html += '<div style="text-align:center;padding:8px;"><div class="loading-spinner" style="width:20px;height:20px;margin:0 auto;"></div></div>';
+      }
+      html += '</div>';
+    }
   });
   html += '</div>';
   container.innerHTML = html;
 }
+async function toggleSessionPreview(sid) {
+  const expanded = !state.expandedSessions[sid];
+  state.expandedSessions[sid] = expanded;
+  if (expanded) {
+    const session = state.sessions.find(s => s.session_id === sid);
+    if (session && !session._previewMessages && state.currentProject) {
+      renderSessions(); // show loading state
+      try {
+        const data = await apiFetch('/api/projects/' + state.currentProject.hash + '/sessions/' + sid + '/messages?last_n=3');
+        session._previewMessages = data.messages || [];
+      } catch {
+        session._previewMessages = [];
+      }
+      renderSessions();
+      return;
+    }
+  }
+  renderSessions();
+}
 function selectSession(sid) {
   state.currentSession = state.sessions.find(s => s.session_id === sid) || { session_id: sid };
   navigateTo('conversation');
+}
+async function deleteSession(sid) {
+  if (!state.currentProject) return;
+  if (!confirm('确定删除此会话？此操作不可撤销。')) return;
+  try {
+    await apiFetch('/api/projects/' + state.currentProject.hash + '/sessions/' + sid, { method: 'DELETE' });
+    showToast('会话已删除', 'success');
+    // Remove from expanded
+    delete state.expandedSessions[sid];
+    loadSessions();
+  } catch (err) {
+    showToast('删除失败: ' + err.message, 'error');
+  }
 }
 async function loadMessages() {
   if (!state.currentProject || !state.currentSession) return;
   const container = document.getElementById('messages-container');
   container.innerHTML = '<div class="empty-state"><div class="loading-spinner"></div><p style="margin-top:12px;color:var(--text-muted);">加载消息中...</p></div>';
   try {
-    const data = await apiFetch('/api/projects/' + state.currentProject.hash + '/sessions/' + state.currentSession.session_id + '/messages?last_n=100');
+    const data = await apiFetch('/api/projects/' + state.currentProject.hash + '/sessions/' + state.currentSession.session_id + '/messages?last_n=' + state.messageLimit);
     state.messages = data.messages || [];
+    state.hasMoreMessages = state.messages.length >= state.messageLimit;
     state.autoScroll = true;
     renderMessages();
   } catch (err) {
     container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><h3>加载失败</h3><p>' + escHtml(err.message) + '</p></div>';
   }
+}
+async function loadMoreMessages() {
+  if (state.loadingMore || !state.hasMoreMessages) return;
+  if (!state.messages.length) return;
+  state.loadingMore = true;
+  const oldest = state.messages[0];
+  const beforeTs = oldest.timestamp || '';
+  try {
+    const url = '/api/projects/' + state.currentProject.hash + '/sessions/' + state.currentSession.session_id +
+      '/messages?last_n=' + state.messageLimit + (beforeTs ? '&before=' + encodeURIComponent(beforeTs) : '');
+    const data = await apiFetch(url);
+    const newMessages = data.messages || [];
+    if (newMessages.length === 0) {
+      state.hasMoreMessages = false;
+    } else {
+      // Preserve scroll position
+      const container = document.getElementById('messages-container');
+      const prevHeight = container.scrollHeight;
+      state.messages = [...newMessages, ...state.messages];
+      if (newMessages.length < state.messageLimit) {
+        state.hasMoreMessages = false;
+      }
+      renderMessages();
+      // Restore scroll position
+      container.scrollTop = container.scrollHeight - prevHeight;
+    }
+  } catch (err) {
+    showToast('加载更多失败: ' + err.message, 'error');
+  }
+  state.loadingMore = false;
 }
 function renderMessages() {
   const container = document.getElementById('messages-container');
@@ -973,42 +1312,138 @@ function renderMessages() {
     container.innerHTML = '<div class="empty-state"><div class="icon">&#128172;</div><h3>暂无消息</h3><p>在下方输入消息开始对话。</p></div>';
     return;
   }
-  container.innerHTML = state.messages.map(renderMessage).join('');
+  let html = '';
+  // Load more link
+  if (state.hasMoreMessages) {
+    html += '<div class="load-more-link" onclick="loadMoreMessages()">' + (state.loadingMore ? '加载中...' : '加载更多...') + '</div>';
+  }
+  // Group messages by turn
+  const groups = groupMessages(state.messages);
+  html += groups.map(renderGroup).join('');
+  // Busy indicator: last group is assistant with tool_use pending
+  const lastGroup = groups[groups.length - 1];
+  if (lastGroup && lastGroup.type === 'assistant' && isGroupBusy(lastGroup)) {
+    html += '<div class="busy-indicator"><span class="busy-dot"></span> 正在执行...</div>';
+  }
+  container.innerHTML = html;
   if (state.autoScroll) {
     container.scrollTop = container.scrollHeight;
   }
 }
-function renderMessage(m) {
-  const isUser = m.type === 'user';
-  const cls = isUser ? 'user' : 'assistant';
-  const hasText = m.text && m.text.trim();
-  const hasTools = m.tool_uses && m.tool_uses.length;
-  // Skip messages with no visible content
-  if (!hasText && !hasTools) return '';
-  let html = '<div class="message ' + cls + '">';
-  html += '<div class="message-header">';
-  if (!isUser && m.model) {
-    html += '<span class="model-badge">' + escHtml(m.model) + '</span>';
+function groupMessages(messages) {
+  const groups = [];
+  let current = null;
+  for (const msg of messages) {
+    if (!current || current.type !== msg.type) {
+      if (current) groups.push(current);
+      current = { type: msg.type, messages: [msg] };
+    } else {
+      current.messages.push(msg);
+    }
   }
-  if (m.timestamp) {
-    html += '<span class="timestamp">' + formatTime(m.timestamp) + '</span>';
+  if (current) groups.push(current);
+  return groups;
+}
+function renderGroup(group) {
+  if (group.type === 'user') {
+    return renderUserGroup(group);
   }
-  html += '</div>';
-  html += '<div class="message-bubble">';
-  if (hasText) {
-    html += renderMarkdown(m.text);
+  return renderAssistantGroup(group);
+}
+function renderUserGroup(group) {
+  const texts = group.messages.map(m => m.text).filter(Boolean);
+  if (!texts.length) return '';
+  const lastMsg = group.messages[group.messages.length - 1];
+  const ts = lastMsg.timestamp ? '<div class="group-timestamp">' + formatTime(lastMsg.timestamp) + '</div>' : '';
+  // Check for image in user messages
+  let imageHtml = '';
+  group.messages.forEach(m => {
+    if (m.image_url || m.image_path) {
+      const src = m.image_url || m.image_path;
+      imageHtml += '<img src="' + escHtml(src) + '" style="max-width:240px;max-height:180px;border-radius:8px;margin:6px 0;display:block;" />';
+    }
+  });
+  return '<div class="message-group user">' +
+    '<div class="group-bubble-user">' +
+    imageHtml +
+    texts.map(t => renderMarkdown(t)).join('') +
+    '</div>' +
+    ts +
+    '</div>';
+}
+function renderAssistantGroup(group) {
+  let content = '';
+  let hasContent = false;
+  for (const msg of group.messages) {
+    // Thinking block
+    if (msg.thinking) {
+      const thinkId = 'think-' + Math.random().toString(36).slice(2, 8);
+      content += '<div class="thinking-block">' +
+        '<div class="thinking-header" onclick="toggleCollapsible(this)">' +
+        '<span class="arrow">&#9654;</span> 💭 思考中...' +
+        '</div>' +
+        '<div class="thinking-content">' + renderMarkdown(msg.thinking) + '</div>' +
+        '</div>';
+      hasContent = true;
+    }
+    // Text content
+    if (msg.text && msg.text.trim()) {
+      content += renderMarkdown(msg.text);
+      hasContent = true;
+    }
+    // Tool calls
+    if (msg.tool_uses && msg.tool_uses.length) {
+      msg.tool_uses.forEach(t => {
+        const name = typeof t === 'string' ? t : (t.name || t.tool || '工具');
+        const icon = toolIcon(name);
+        content += '<span class="tool-call-badge">' + icon + ' ' + escHtml(name) + '</span> ';
+      });
+      hasContent = true;
+    }
+    // Tool results
+    if (msg.tool_results && msg.tool_results.length) {
+      msg.tool_results.forEach(r => {
+        const name = r.tool_name || r.name || '结果';
+        const resultContent = r.content || r.output || (typeof r === 'string' ? r : '');
+        const resultId = 'toolres-' + Math.random().toString(36).slice(2, 8);
+        content += '<div class="tool-result-block">' +
+          '<div class="tool-result-header" onclick="toggleCollapsible(this)">' +
+          '<span class="arrow">&#9654;</span> ' + escHtml(name) + ' 结果' +
+          '</div>' +
+          '<div class="tool-result-content"><pre>' + escHtml(resultContent) + '</pre></div>' +
+          '</div>';
+      });
+      hasContent = true;
+    }
+    // Image in assistant messages
+    if (msg.image_url || msg.image_path) {
+      const src = msg.image_url || msg.image_path;
+      content += '<img src="' + escHtml(src) + '" style="max-width:100%;border-radius:8px;margin:8px 0;" />';
+      hasContent = true;
+    }
   }
-  if (hasTools) {
-    html += '<div' + (hasText ? ' style="margin-top:8px;"' : '') + ' style="display:flex;flex-wrap:wrap;gap:4px;">';
-    m.tool_uses.forEach(t => {
-      const name = typeof t === 'string' ? t : (t.name || t.tool || '工具');
-      const icon = toolIcon(name);
-      html += '<span class="tool-badge">' + icon + ' ' + escHtml(name) + '</span>';
-    });
-    html += '</div>';
-  }
-  html += '</div></div>';
-  return html;
+  if (!hasContent) return '';
+  // Timestamp on last message only
+  const lastMsg = group.messages[group.messages.length - 1];
+  const ts = lastMsg.timestamp ? '<div class="group-timestamp">' + formatTime(lastMsg.timestamp) + '</div>' : '';
+  return '<div class="message-group assistant">' +
+    '<div class="group-content">' + content + '</div>' +
+    ts +
+    '</div>';
+}
+function toggleCollapsible(header) {
+  header.classList.toggle('open');
+  const body = header.nextElementSibling;
+  if (body) body.classList.toggle('open');
+}
+function isGroupBusy(group) {
+  const lastMsg = group.messages[group.messages.length - 1];
+  if (!lastMsg) return false;
+  // Check if last message has tool_uses (waiting for results)
+  if (lastMsg.tool_uses && lastMsg.tool_uses.length && !lastMsg.tool_results) return true;
+  // Check stop_reason
+  if (lastMsg.stop_reason === 'tool_use') return true;
+  return false;
 }
 function toolIcon(name) {
   const n = (name || '').toLowerCase();
@@ -1077,6 +1512,18 @@ async function sendMessage() {
       const formData = new FormData();
       formData.append('file', pendingFile);
       formData.append('message', text || '请分析这张图片');
+      // Show preview in messages before sending
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        state.messages.push({
+          type: 'user', text: text || '请分析这张图片',
+          timestamp: new Date().toISOString(),
+          image_url: e.target.result
+        });
+        state.autoScroll = true;
+        renderMessages();
+      };
+      reader.readAsDataURL(pendingFile);
       await apiFetch('/api/projects/' + state.currentProject.hash + '/sessions/' + state.currentSession.session_id + '/upload', {
         method: 'POST',
         body: formData,
@@ -1089,10 +1536,11 @@ async function sendMessage() {
         body: JSON.stringify({ message: text }),
         headers: { 'Content-Type': 'application/json' }
       });
+      state.messages.push({ type: 'user', text: text, timestamp: new Date().toISOString() });
     }
     input.value = '';
     input.style.height = 'auto';
-    state.messages.push({ type: 'user', text: text, timestamp: new Date().toISOString() });
+    state.autoScroll = true;
     renderMessages();
     showToast('消息已发送', 'success');
     setTimeout(loadMessages, 3000);
@@ -1123,6 +1571,27 @@ function renderMarkdown(text) {
   });
   // Inline code
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // Tables
+  html = html.replace(/(^|\n)((?:\|[^\n]+\|\n)+)/g, (_, pre, tableBlock) => {
+    const rows = tableBlock.trim().split('\n').filter(r => r.trim());
+    if (rows.length < 2) return pre + tableBlock; // not a real table
+    // Check if second row is separator
+    const sepRow = rows[1].replace(/\|/g, '').replace(/[\s-]/g, '');
+    if (sepRow.length > 0) return pre + tableBlock; // not a separator row
+    const parseRow = (row) => row.split('|').slice(1, -1).map(c => c.trim());
+    const headerCells = parseRow(rows[0]);
+    let tableHtml = '<table><thead><tr>';
+    headerCells.forEach(c => { tableHtml += '<th>' + c + '</th>'; });
+    tableHtml += '</tr></thead><tbody>';
+    for (let i = 2; i < rows.length; i++) {
+      const cells = parseRow(rows[i]);
+      tableHtml += '<tr>';
+      cells.forEach(c => { tableHtml += '<td>' + c + '</td>'; });
+      tableHtml += '</tr>';
+    }
+    tableHtml += '</tbody></table>';
+    return pre + tableHtml;
+  });
   // Headings
   html = html.replace(/^### (.+)$/gm, '<h4>$1</h4>');
   html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
@@ -1165,7 +1634,6 @@ function escHtml(s) {
   return el.innerHTML;
 }
 function decodeHash(hash) {
-  // "E--AI-Project-claude-code-mobile" → "E:\AI Project\claude-code-mobile"
   return hash.replace(/--/g, '\\').replace(/-/g, ' ');
 }
 function shortPath(p) {
@@ -1174,7 +1642,6 @@ function shortPath(p) {
   return parts.slice(-2).join('/');
 }
 function displayPath(p) {
-  // Use path if it looks like a real path, otherwise decode from hash
   if (p && (p.includes('\\') || p.includes('/'))) return shortPath(p);
   return p || '';
 }

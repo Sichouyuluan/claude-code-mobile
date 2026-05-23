@@ -79,9 +79,9 @@ class GlowButton(ctk.CTkButton):
 class Panel(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("CC Remote Dashboard")
-        self.geometry("500x750")
-        self.minsize(420, 600)
+        self.title("CCM")
+        self.geometry("750x480")
+        self.minsize(600, 400)
         self.configure(fg_color=BG)
         self.server_process = None
         self.server_running = False
@@ -89,170 +89,128 @@ class Panel(ctk.CTk):
         self.after(500, self._refresh)
 
     def _build_ui(self):
-        # Main scrollable frame
-        self.scroll = ctk.CTkScrollableFrame(self, fg_color="transparent",
-                                              scrollbar_button_color=TEXT3,
-                                              scrollbar_button_hover_color=TEXT2)
-        self.scroll.pack(fill="both", expand=True, padx=20, pady=20)
-
-        # Title with glow
-        title_frame = ctk.CTkFrame(self.scroll, fg_color="transparent")
-        title_frame.pack(fill="x", pady=(0, 20))
-
-        ctk.CTkLabel(title_frame, text="CC",
-                     font=ctk.CTkFont(size=28, weight="bold"),
+        # Title bar
+        title_frame = ctk.CTkFrame(self, fg_color="transparent")
+        title_frame.pack(fill="x", padx=20, pady=(12, 0))
+        ctk.CTkLabel(title_frame, text="CCM",
+                     font=ctk.CTkFont(size=22, weight="bold"),
                      text_color=GLOW).pack(side="left")
-        ctk.CTkLabel(title_frame, text="Remote Dashboard",
-                     font=ctk.CTkFont(size=28, weight="bold"),
-                     text_color=TEXT).pack(side="left", padx=(4, 0))
         ctk.CTkLabel(title_frame, text="管理面板",
                      font=ctk.CTkFont(size=11),
-                     text_color=TEXT3).pack(side="left", padx=(8, 0), pady=(8, 0))
+                     text_color=TEXT3).pack(side="left", padx=(8, 0), pady=(4, 0))
 
-        # === Service Status Card ===
-        card1 = GlassCard(self.scroll)
-        card1.pack(fill="x", pady=(0, 12))
+        # Two-column layout
+        columns = ctk.CTkFrame(self, fg_color="transparent")
+        columns.pack(fill="both", expand=True, padx=20, pady=(8, 12))
+
+        # Left column
+        left = ctk.CTkFrame(columns, fg_color="transparent")
+        left.pack(side="left", fill="both", expand=True, padx=(0, 8))
+
+        # Right column
+        right = ctk.CTkFrame(columns, fg_color="transparent")
+        right.pack(side="right", fill="both", expand=True, padx=(8, 0))
+
+        # === LEFT: Service Status ===
+        card1 = GlassCard(left)
+        card1.pack(fill="x", pady=(0, 8))
 
         header1 = ctk.CTkFrame(card1, fg_color="transparent")
-        header1.pack(fill="x", padx=16, pady=(14, 8))
+        header1.pack(fill="x", padx=12, pady=(10, 4))
         ctk.CTkLabel(header1, text="服务状态",
                      font=ctk.CTkFont(size=11, weight="bold"),
                      text_color=TEXT3).pack(side="left")
-
-        self.status_dot = ctk.CTkLabel(header1, text="●",
-                                        font=ctk.CTkFont(size=16),
-                                        text_color=TEXT3)
+        self.status_dot = ctk.CTkLabel(header1, text="●", font=ctk.CTkFont(size=14), text_color=TEXT3)
         self.status_dot.pack(side="right")
 
         self.status_label = ctk.CTkLabel(card1, text="检测中...",
-                                         font=ctk.CTkFont(size=14, weight="bold"),
-                                         text_color=TEXT)
-        self.status_label.pack(anchor="w", padx=16, pady=(0, 10))
+                                         font=ctk.CTkFont(size=13, weight="bold"), text_color=TEXT)
+        self.status_label.pack(anchor="w", padx=12, pady=(0, 8))
 
         btn_frame = ctk.CTkFrame(card1, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=16, pady=(0, 14))
+        btn_frame.pack(fill="x", padx=12, pady=(0, 10))
+        self.btn_start = GlowButton(btn_frame, text="▶ 启动", glow_color=GREEN, height=32, command=self._start)
+        self.btn_start.pack(side="left", expand=True, fill="x", padx=(0, 4))
+        self.btn_stop = GlowButton(btn_frame, text="■ 停止", glow_color=RED, height=32, command=self._stop, state="disabled")
+        self.btn_stop.pack(side="left", expand=True, fill="x", padx=(4, 0))
 
-        self.btn_start = GlowButton(btn_frame, text="▶  启动服务",
-                                     glow_color=GREEN, height=38,
-                                     command=self._start)
-        self.btn_start.pack(side="left", expand=True, fill="x", padx=(0, 6))
+        # === LEFT: Connection Info ===
+        card2 = GlassCard(left)
+        card2.pack(fill="x", pady=(0, 8))
 
-        self.btn_stop = GlowButton(btn_frame, text="■  停止服务",
-                                    glow_color=RED, height=38,
-                                    command=self._stop, state="disabled")
-        self.btn_stop.pack(side="left", expand=True, fill="x", padx=(6, 0))
+        ctk.CTkLabel(card2, text="连接信息", font=ctk.CTkFont(size=11, weight="bold"),
+                     text_color=TEXT3).pack(anchor="w", padx=12, pady=(10, 4))
+        self._url_row(card2, "本地", "local_url")
+        self._url_row(card2, "局域网", "lan_url")
 
-        # === Connection Info Card ===
-        card2 = GlassCard(self.scroll)
-        card2.pack(fill="x", pady=(0, 12))
-
-        ctk.CTkLabel(card2, text="连接信息",
-                     font=ctk.CTkFont(size=11, weight="bold"),
-                     text_color=TEXT3).pack(anchor="w", padx=16, pady=(14, 8))
-
-        # Local URL
-        self._url_row(card2, "本地地址", "local_url")
-        # LAN URL
-        self._url_row(card2, "局域网地址", "lan_url")
-
-        # API Key
         key_frame = ctk.CTkFrame(card2, fg_color="#0a0f1e", corner_radius=8)
-        key_frame.pack(fill="x", padx=12, pady=4)
-        ctk.CTkLabel(key_frame, text="密钥",
-                     font=ctk.CTkFont(size=10),
-                     text_color=TEXT3).pack(anchor="w", padx=10, pady=(6, 0))
+        key_frame.pack(fill="x", padx=8, pady=4)
         key_row = ctk.CTkFrame(key_frame, fg_color="transparent")
-        key_row.pack(fill="x", padx=10, pady=(0, 8))
+        key_row.pack(fill="x", padx=8, pady=(6, 6))
         self.key_label = ctk.CTkLabel(key_row, text="--",
-                                       font=ctk.CTkFont(family="Consolas", size=11, weight="bold"),
-                                       text_color=GLOW)
+                                       font=ctk.CTkFont(family="Consolas", size=10), text_color=GLOW)
         self.key_label.pack(side="left")
-        GlowButton(key_row, text="复制", width=50, height=26,
-                   glow_color="#374151",
-                   font=ctk.CTkFont(size=10),
-                   command=self._copy_key).pack(side="right")
+        GlowButton(key_row, text="复制", width=45, height=24, glow_color="#374151",
+                   font=ctk.CTkFont(size=9), command=self._copy_key).pack(side="right")
 
-        # Action buttons
         action_frame = ctk.CTkFrame(card2, fg_color="transparent")
-        action_frame.pack(fill="x", padx=12, pady=(4, 14))
+        action_frame.pack(fill="x", padx=8, pady=(2, 8))
+        GlowButton(action_frame, text="打开面板", height=28, glow_color=ACCENT,
+                   command=self._open_dashboard).pack(side="left", expand=True, fill="x", padx=(0, 3))
+        GlowButton(action_frame, text="复制链接", height=28, glow_color="#374151",
+                   command=self._copy_local_url).pack(side="left", expand=True, fill="x", padx=(3, 0))
 
-        GlowButton(action_frame, text="打开面板", height=32,
-                   glow_color=ACCENT,
-                   command=self._open_dashboard).pack(side="left", expand=True, fill="x", padx=(0, 4))
-        GlowButton(action_frame, text="复制链接", height=32,
-                   glow_color="#374151",
-                   command=self._copy_local_url).pack(side="left", expand=True, fill="x", padx=(4, 0))
+        # === RIGHT: System Status ===
+        card3 = GlassCard(right)
+        card3.pack(fill="x", pady=(0, 8))
 
-        # === System Status Card ===
-        card3 = GlassCard(self.scroll)
-        card3.pack(fill="x", pady=(0, 12))
-
-        ctk.CTkLabel(card3, text="系统状态",
-                     font=ctk.CTkFont(size=11, weight="bold"),
-                     text_color=TEXT3).pack(anchor="w", padx=16, pady=(14, 8))
+        ctk.CTkLabel(card3, text="系统状态", font=ctk.CTkFont(size=11, weight="bold"),
+                     text_color=TEXT3).pack(anchor="w", padx=12, pady=(10, 4))
 
         sys_frame = ctk.CTkFrame(card3, fg_color="transparent")
-        sys_frame.pack(fill="x", padx=16, pady=(0, 14))
+        sys_frame.pack(fill="x", padx=12, pady=(0, 8))
 
-        self.cpu_label = ctk.CTkLabel(sys_frame, text="CPU  --",
-                                       font=ctk.CTkFont(size=12),
-                                       text_color=TEXT2)
+        self.cpu_label = ctk.CTkLabel(sys_frame, text="CPU  --", font=ctk.CTkFont(size=11), text_color=TEXT2)
         self.cpu_label.pack(anchor="w")
-        self.cpu_bar = ctk.CTkProgressBar(sys_frame, height=5, corner_radius=3)
-        self.cpu_bar.pack(fill="x", pady=(3, 10))
+        self.cpu_bar = ctk.CTkProgressBar(sys_frame, height=4, corner_radius=2)
+        self.cpu_bar.pack(fill="x", pady=(2, 6))
         self.cpu_bar.set(0)
 
-        self.mem_label = ctk.CTkLabel(sys_frame, text="内存  --",
-                                       font=ctk.CTkFont(size=12),
-                                       text_color=TEXT2)
+        self.mem_label = ctk.CTkLabel(sys_frame, text="内存  --", font=ctk.CTkFont(size=11), text_color=TEXT2)
         self.mem_label.pack(anchor="w")
-        self.mem_bar = ctk.CTkProgressBar(sys_frame, height=5, corner_radius=3)
-        self.mem_bar.pack(fill="x", pady=(3, 10))
+        self.mem_bar = ctk.CTkProgressBar(sys_frame, height=4, corner_radius=2)
+        self.mem_bar.pack(fill="x", pady=(2, 6))
         self.mem_bar.set(0)
 
-        self.cc_label = ctk.CTkLabel(sys_frame, text="CC 进程  --",
-                                      font=ctk.CTkFont(size=12),
-                                      text_color=TEXT2)
+        self.cc_label = ctk.CTkLabel(sys_frame, text="CC 进程  --", font=ctk.CTkFont(size=11), text_color=TEXT2)
         self.cc_label.pack(anchor="w")
 
-        # === Logs Card ===
-        card4 = GlassCard(self.scroll)
-        card4.pack(fill="x", pady=(0, 12))
+        # === RIGHT: Logs ===
+        card4 = GlassCard(right)
+        card4.pack(fill="both", expand=True)
 
-        ctk.CTkLabel(card4, text="最近日志",
-                     font=ctk.CTkFont(size=11, weight="bold"),
-                     text_color=TEXT3).pack(anchor="w", padx=16, pady=(14, 8))
+        ctk.CTkLabel(card4, text="日志", font=ctk.CTkFont(size=11, weight="bold"),
+                     text_color=TEXT3).pack(anchor="w", padx=12, pady=(10, 4))
 
-        self.log_box = ctk.CTkTextbox(card4, height=100,
-                                       font=ctk.CTkFont(family="Consolas", size=10),
-                                       fg_color="#060910", text_color=TEXT3,
-                                       corner_radius=8)
-        self.log_box.pack(fill="x", padx=12, pady=(0, 12))
+        self.log_box = ctk.CTkTextbox(card4, height=80,
+                                       font=ctk.CTkFont(family="Consolas", size=9),
+                                       fg_color="#060910", text_color=TEXT3, corner_radius=6)
+        self.log_box.pack(fill="both", expand=True, padx=8, pady=(0, 8))
         self.log_box.insert("0.0", "暂无日志")
         self.log_box.configure(state="disabled")
 
         # Footer
-        ctk.CTkLabel(self.scroll, text="CC Remote v1.0",
-                     font=ctk.CTkFont(size=10),
-                     text_color=TEXT3).pack(pady=(4, 0))
+        ctk.CTkLabel(self, text="CCM v1.0", font=ctk.CTkFont(size=9), text_color=TEXT3).pack(pady=(0, 4))
 
     def _url_row(self, parent, label, attr):
-        frame = ctk.CTkFrame(parent, fg_color="#0a0f1e", corner_radius=8)
-        frame.pack(fill="x", padx=12, pady=4)
-        ctk.CTkLabel(frame, text=label,
-                     font=ctk.CTkFont(size=10),
-                     text_color=TEXT3).pack(anchor="w", padx=10, pady=(6, 0))
-        row = ctk.CTkFrame(frame, fg_color="transparent")
-        row.pack(fill="x", padx=10, pady=(0, 8))
-        lbl = ctk.CTkLabel(row, text="--",
-                            font=ctk.CTkFont(family="Consolas", size=11),
-                            text_color=TEXT)
-        lbl.pack(side="left")
+        row = ctk.CTkFrame(parent, fg_color="transparent")
+        row.pack(fill="x", padx=8, pady=2)
+        ctk.CTkLabel(row, text=label, font=ctk.CTkFont(size=9), text_color=TEXT3, width=30).pack(side="left")
+        lbl = ctk.CTkLabel(row, text="--", font=ctk.CTkFont(family="Consolas", size=10), text_color=TEXT)
+        lbl.pack(side="left", padx=(4, 0))
         setattr(self, attr, lbl)
-        GlowButton(row, text="复制", width=50, height=26,
-                   glow_color="#374151",
-                   font=ctk.CTkFont(size=10),
-                   command=lambda a=attr: self._copy_url(a)).pack(side="right")
+        GlowButton(row, text="复制", width=40, height=22, glow_color="#374151",
+                   font=ctk.CTkFont(size=9), command=lambda a=attr: self._copy_url(a)).pack(side="right")
 
     def _start(self):
         if self.server_running:

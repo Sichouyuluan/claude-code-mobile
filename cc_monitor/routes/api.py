@@ -1,9 +1,13 @@
 """数据 API 路由"""
+import asyncio
+import json
 import os
 import shutil
 import tempfile
+import time
+
 from fastapi import APIRouter, Request, UploadFile, File, Form
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from cc_monitor.routes.auth import require_auth
 from cc_monitor.claude_reader import ClaudeReader
@@ -60,9 +64,9 @@ def list_sessions(project_hash: str, request: Request):
 
 @router.get("/api/projects/{project_hash}/sessions/{session_id}/messages")
 def get_messages(project_hash: str, session_id: str,
-                 last_n: int = 50, request: Request = None):
+                 last_n: int = 50, offset: int = 0, request: Request = None):
     require_auth(request)
-    messages = _get_reader().read_conversation(project_hash, session_id, last_n)
+    messages = _get_reader().read_conversation(project_hash, session_id, last_n, offset)
     return {"messages": messages, "count": len(messages)}
 
 
@@ -84,17 +88,75 @@ async def upload_image(project_hash: str, session_id: str,
                        message: str = Form("请分析这张图片"),
                        request: Request = None):
     require_auth(request)
+    reader = _get_reader()
+    # Resolve project cwd from session metadata
+    meta = reader._read_meta_from_session(project_hash, session_id)
+    proj_cwd = meta.get("cwd", "")
+    content = await file.read()
+    # Save to temp for sending to CC
     upload_dir = tempfile.mkdtemp()
     try:
         ext = os.path.splitext(file.filename or "upload.jpg")[1]
-        path = os.path.join(upload_dir, f"upload{ext}")
-        with open(path, "wb") as f:
-            content = await file.read()
+        tmp_path = os.path.join(upload_dir, f"upload{ext}")
+        with open(tmp_path, "wb") as f:
             f.write(content)
-        result = await _get_sender().upload_image(path, message, session_id=session_id)
+        # Save permanent copy to project's pictures/ directory
+        saved_path = _save_to_pictures(proj_cwd, file.filename, content)
+        # Ensure pictures/ is in .gitignore
+        if proj_cwd:
+            _ensure_gitignore(proj_cwd)
+        result = await _get_sender().upload_image(tmp_path, message, session_id=session_id)
+        if saved_path:
+            result["saved_path"] = saved_path
         return result
     finally:
         shutil.rmtree(upload_dir, ignore_errors=True)
+
+
+def _save_to_pictures(proj_cwd: str, original_filename: str, content: bytes) -> str | None:
+    """Save an uploaded file to {proj_cwd}/pictures/ with timestamp prefix.
+    Returns the saved file path, or None if proj_cwd is empty.
+    """
+    if not proj_cwd:
+        return None
+    pictures_dir = os.path.join(proj_cwd, "pictures")
+    os.makedirs(pictures_dir, exist_ok=True)
+    ext = os.path.splitext(original_filename or "upload.jpg")[1]
+    base = os.path.splitext(os.path.basename(original_filename or "upload"))[0]
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    filename = f"{ts}_{base}{ext}"
+    path = os.path.join(pictures_dir, filename)
+    # Avoid collision by appending a counter
+    counter = 1
+    while os.path.exists(path):
+        filename = f"{ts}_{base}_{counter}{ext}"
+        path = os.path.join(pictures_dir, filename)
+        counter += 1
+    with open(path, "wb") as f:
+        f.write(content)
+    return path
+
+
+def _ensure_gitignore(proj_cwd: str):
+    """Ensure 'pictures/' is listed in the project's .gitignore.
+    Only acts if a .git file or directory exists in proj_cwd.
+    """
+    git_path = os.path.join(proj_cwd, ".git")
+    if not os.path.exists(git_path):
+        return
+    gitignore_path = os.path.join(proj_cwd, ".gitignore")
+    try:
+        existing = ""
+        if os.path.exists(gitignore_path):
+            with open(gitignore_path, "r", encoding="utf-8", errors="replace") as f:
+                existing = f.read()
+        if "pictures/" not in existing:
+            with open(gitignore_path, "a", encoding="utf-8") as f:
+                if existing and not existing.endswith("\n"):
+                    f.write("\n")
+                f.write("pictures/\n")
+    except Exception:
+        pass
 
 
 @router.post("/api/projects/{project_hash}/new-session")
@@ -108,6 +170,109 @@ async def new_session(project_hash: str, request: Request):
     model = body.get("model")
     result = await _get_sender().start_new_session(message, cwd=cwd, model=model)
     return result
+
+
+@router.delete("/api/projects/{project_hash}/sessions/{session_id}")
+async def delete_session(project_hash: str, session_id: str, request: Request):
+    """Delete a session's JSONL file and related data."""
+    require_auth(request)
+    reader = _get_reader()
+    proj_dir = reader.projects_dir / project_hash
+    jsonl_path = proj_dir / f"{session_id}.jsonl"
+    if not jsonl_path.exists():
+        return JSONResponse(status_code=404, content={"error": "会话不存在"})
+    try:
+        jsonl_path.unlink()
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"删除文件失败: {e}"})
+    # Delete session subdirectory if it exists
+    session_subdir = proj_dir / session_id
+    if session_subdir.is_dir():
+        shutil.rmtree(session_subdir, ignore_errors=True)
+    return {"success": True, "message": f"会话 {session_id} 已删除"}
+
+
+@router.get("/api/cc-status")
+def cc_status(request: Request):
+    """Get status of all CC sessions."""
+    require_auth(request)
+    return {"sessions": _get_reader().get_cc_status()}
+
+
+@router.get("/api/projects/{project_hash}/sessions/{session_id}/stream")
+async def stream_session(project_hash: str, session_id: str, request: Request):
+    """SSE endpoint that streams new messages as they appear.
+    Polls the JSONL file every 2 seconds and sends new lines as SSE events.
+    """
+    require_auth(request)
+    reader = _get_reader()
+    jsonl_path = reader.projects_dir / project_hash / f"{session_id}.jsonl"
+
+    async def event_generator():
+        if not jsonl_path.exists():
+            yield "event: error\ndata: {\"error\": \"会话文件不存在\"}\n\n"
+            return
+        # Start from the current end of file
+        try:
+            with open(jsonl_path, "r", encoding="utf-8", errors="replace") as f:
+                lines = f.readlines()
+                last_count = len(lines)
+        except Exception:
+            yield "event: error\ndata: {\"error\": \"无法读取文件\"}\n\n"
+            return
+
+        while True:
+            # Check if client disconnected
+            if await request.is_disconnected():
+                break
+            await asyncio.sleep(2)
+            try:
+                with open(jsonl_path, "r", encoding="utf-8", errors="replace") as f:
+                    lines = f.readlines()
+                new_count = len(lines)
+                if new_count > last_count:
+                    new_lines = lines[last_count:]
+                    last_count = new_count
+                    for line in new_lines:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            obj = json.loads(line)
+                            t = obj.get("type")
+                            if t in ("user", "assistant"):
+                                msg = obj.get("message", {})
+                                content = msg.get("content", [])
+                                text_parts = []
+                                for b in content:
+                                    if isinstance(b, dict) and b.get("type") == "text":
+                                        text_parts.append(b.get("text", ""))
+                                    elif isinstance(b, str):
+                                        text_parts.append(b)
+                                event_data = json.dumps({
+                                    "type": t,
+                                    "text": "\n".join(text_parts),
+                                    "timestamp": obj.get("timestamp", ""),
+                                    "uuid": obj.get("uuid", ""),
+                                }, ensure_ascii=False)
+                                yield f"data: {event_data}\n\n"
+                        except json.JSONDecodeError:
+                            continue
+            except FileNotFoundError:
+                yield "event: error\ndata: {\"error\": \"文件已被删除\"}\n\n"
+                break
+            except Exception:
+                continue
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/api/health")
