@@ -95,6 +95,8 @@ class Panel(ctk.CTk):
         self.server_running = False
         # Kill subprocess when window closes
         self.protocol("WM_DELETE_WINDOW", self._on_close)
+        # Kill orphaned server on startup
+        self._kill_by_port()
         self._build_ui()
         self.after(500, self._refresh)
 
@@ -255,6 +257,12 @@ class Panel(ctk.CTk):
                 pass
 
     def _on_close(self):
+        self._kill_server()
+        self.destroy()
+
+    def _kill_server(self):
+        """Kill server by handle AND by port (catches orphans)"""
+        # Kill by subprocess handle
         if self.server_process:
             try:
                 self.server_process.terminate()
@@ -264,7 +272,28 @@ class Panel(ctk.CTk):
                     self.server_process.kill()
                 except Exception:
                     pass
-        self.destroy()
+            self.server_process = None
+        # Kill by port (catches orphaned processes)
+        self._kill_by_port()
+
+    def _kill_by_port(self):
+        """Kill any process listening on the server port"""
+        try:
+            import subprocess
+            port = get_port()
+            # Find PID on port
+            result = subprocess.run(
+                ["netstat", "-ano"], capture_output=True, text=True, timeout=5
+            )
+            for line in result.stdout.splitlines():
+                if f":{port}" in line and "LISTENING" in line:
+                    parts = line.split()
+                    pid = int(parts[-1])
+                    if pid > 0:
+                        subprocess.run(["taskkill", "/F", "/PID", str(pid)],
+                                       capture_output=True, timeout=5)
+        except Exception:
+            pass
 
     def _stop(self):
         if self.server_process:
@@ -440,6 +469,25 @@ class Panel(ctk.CTk):
         except Exception:
             pass
 
+
+import atexit
+
+def _cleanup_orphaned():
+    """Kill any orphaned server process on exit"""
+    try:
+        import subprocess
+        port = get_port()
+        result = subprocess.run(["netstat", "-ano"], capture_output=True, text=True, timeout=5)
+        for line in result.stdout.splitlines():
+            if f":{port}" in line and "LISTENING" in line:
+                parts = line.split()
+                pid = int(parts[-1])
+                if pid > 0:
+                    subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, timeout=5)
+    except Exception:
+        pass
+
+atexit.register(_cleanup_orphaned)
 
 if __name__ == "__main__":
     try:
