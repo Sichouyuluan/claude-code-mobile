@@ -1,3 +1,3 @@
 @echo off
 cd /d "%~dp0"
-start "" pythonw CCM.pyw
+start /min wscript.exe "Æô¶¯.vbs"
