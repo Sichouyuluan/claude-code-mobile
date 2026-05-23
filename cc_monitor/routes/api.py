@@ -1,14 +1,14 @@
 """数据 API 路由"""
 import asyncio
 import json
-import logging
 import os
 import re
 import shutil
 import tempfile
 import time
 
-logger = logging.getLogger("cc_dashboard")
+from cc_monitor.logger import get_logger
+logger = get_logger()
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import JSONResponse, StreamingResponse
