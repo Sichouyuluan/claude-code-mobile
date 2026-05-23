@@ -84,12 +84,19 @@ class Panel(ctk.CTk):
         self.geometry("750x480")
         self.minsize(600, 400)
         self.configure(fg_color=BG)
-        # Set window icon
+        # Set window icon — try iconphoto (high quality) first, fallback to iconbitmap
         import os
-        ico_path = str(PROJECT_DIR / "static" / "icon.ico")
-        if os.path.exists(ico_path):
+        try:
+            png_path = str(PROJECT_DIR / "static" / "icon.png")
+            if os.path.exists(png_path):
+                # iconphoto renders at native resolution, much sharper than iconbitmap
+                self._icon_photo = tk.PhotoImage(file=png_path)
+                self.iconphoto(True, self._icon_photo)
+        except Exception:
             try:
-                self.iconbitmap(ico_path)
+                ico_path = str(PROJECT_DIR / "static" / "icon.ico")
+                if os.path.exists(ico_path):
+                    self.iconbitmap(ico_path)
             except Exception:
                 pass
         self.server_process = None
