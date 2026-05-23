@@ -282,9 +282,14 @@ class Panel(ctk.CTk):
         try:
             import subprocess
             port = get_port()
+            _si = subprocess.STARTUPINFO()
+            _si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            _si.wShowWindow = 0  # SW_HIDE
             # Find PID on port
             result = subprocess.run(
-                ["netstat", "-ano"], capture_output=True, text=True, timeout=5
+                ["netstat", "-ano"], capture_output=True, text=True, timeout=5,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+                startupinfo=_si,
             )
             for line in result.stdout.splitlines():
                 if f":{port}" in line and "LISTENING" in line:
@@ -292,7 +297,9 @@ class Panel(ctk.CTk):
                     pid = int(parts[-1])
                     if pid > 0:
                         subprocess.run(["taskkill", "/F", "/PID", str(pid)],
-                                       capture_output=True, timeout=5)
+                                       capture_output=True, timeout=5,
+                                       creationflags=subprocess.CREATE_NO_WINDOW,
+                                       startupinfo=_si)
         except Exception:
             pass
 
@@ -478,13 +485,20 @@ def _cleanup_orphaned():
     try:
         import subprocess
         port = get_port()
-        result = subprocess.run(["netstat", "-ano"], capture_output=True, text=True, timeout=5)
+        _si = subprocess.STARTUPINFO()
+        _si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        _si.wShowWindow = 0  # SW_HIDE
+        result = subprocess.run(["netstat", "-ano"], capture_output=True, text=True, timeout=5,
+                                creationflags=subprocess.CREATE_NO_WINDOW,
+                                startupinfo=_si)
         for line in result.stdout.splitlines():
             if f":{port}" in line and "LISTENING" in line:
                 parts = line.split()
                 pid = int(parts[-1])
                 if pid > 0:
-                    subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, timeout=5)
+                    subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, timeout=5,
+                                   creationflags=subprocess.CREATE_NO_WINDOW,
+                                   startupinfo=_si)
     except Exception:
         pass
 
