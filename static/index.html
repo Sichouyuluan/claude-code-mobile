@@ -1476,11 +1476,8 @@ function renderActiveSessions() {
     const cwd = a.cwd || a.project_path || '';
     const projectName = cwd ? cwd.replace(/\\/g, '/').split('/').filter(Boolean).pop() || cwd : ('PID ' + (a.pid || '?'));
     const subtitle = cwd || (a.running ? '运行中' : '空闲');
-    const projectHash = a.project_hash || '';
     const sessionId = a.session_id || '';
-    const onclick = projectHash ? 'onclick="selectProject(\'' + escHtml(projectHash) + '\')"' :
-      sessionId ? 'onclick="selectProjectBySession(\'' + escHtml(sessionId) + '\')"' :
-      cwd ? 'onclick="selectProjectByPath(\'' + escHtml(cwd) + '\')"' : '';
+    const onclick = sessionId ? 'onclick="enterActiveSession(\'' + escHtml(sessionId) + '\',\'' + escHtml(cwd) + '\')"' : '';
     return '<div class="sidebar-item" ' + onclick + '>' +
       '<span class="dot dot-active"></span>' +
       '<div class="item-info">' +
@@ -1490,7 +1487,6 @@ function renderActiveSessions() {
   }).join('');
 }
 function selectProjectBySession(sessionId) {
-  // Find project by checking if the session exists in it
   const match = state.projects.find(p => {
     return p._recentSessions && p._recentSessions.some(s => s.session_id === sessionId);
   });
@@ -1498,10 +1494,27 @@ function selectProjectBySession(sessionId) {
     selectProject(match.hash);
     return;
   }
-  // If not found in cached sessions, try path matching as fallback
   if (state.projects.length) {
-    // Just select the first project and let user navigate
     selectProject(state.projects[0].hash);
+  }
+}
+function enterActiveSession(sessionId, cwd) {
+  // Find the project containing this session
+  let project = state.projects.find(p => {
+    return p._recentSessions && p._recentSessions.some(s => s.session_id === sessionId);
+  });
+  // Fallback: match by path
+  if (!project && cwd) {
+    const normalize = p => (p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+    project = state.projects.find(p => normalize(p.path) === normalize(cwd));
+  }
+  if (!project && state.projects.length) {
+    project = state.projects[0];
+  }
+  if (project) {
+    state.currentProject = project;
+    state.currentSession = { session_id: sessionId };
+    navigateTo('conversation');
   }
 }
 function selectProjectByPath(cwd) {
