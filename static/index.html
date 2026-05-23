@@ -1383,14 +1383,14 @@ function updateScrollbarMarkers() {
   markersEl.innerHTML = '';
   const scrollHeight = container.scrollHeight;
   if (scrollHeight === 0) return;
-  const rounds = container.querySelectorAll('.round');
-  rounds.forEach(r => {
-    const top = r.offsetTop;
+  const dividers = container.querySelectorAll('.round-divider');
+  dividers.forEach(d => {
+    const top = d.offsetTop;
     const pct = (top / scrollHeight) * 100;
     const marker = document.createElement('div');
     marker.className = 'scrollbar-marker';
     marker.style.top = pct + '%';
-    if (r.classList.contains('round-collapsed')) {
+    if (d.classList.contains('round-collapsed')) {
       marker.style.opacity = '0.3';
     }
     markersEl.appendChild(marker);
