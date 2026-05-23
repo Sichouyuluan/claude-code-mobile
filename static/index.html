@@ -649,9 +649,21 @@ a:hover { text-decoration: underline; }
 .conversation {
   flex: 1; display: flex; flex-direction: column; overflow: hidden;
 }
+.messages-wrapper {
+  flex: 1; position: relative; overflow: hidden;
+}
 .messages-container {
-  flex: 1; overflow-y: auto; padding: 20px;
+  height: 100%; overflow-y: auto; padding: 20px;
   display: flex; flex-direction: column;
+}
+.scrollbar-markers {
+  position: absolute; top: 0; right: 2px; bottom: 0;
+  width: 6px; pointer-events: none; z-index: 10;
+}
+.scrollbar-marker {
+  position: absolute; right: 0; width: 5px; height: 4px;
+  background: var(--accent); border-radius: 2px;
+  opacity: 0.7;
 }
 /* Message groups - continuous flow */
 .message-group {
@@ -948,19 +960,6 @@ a:hover { text-decoration: underline; }
   line-height: 1.5;
 }
 /* Load more */
-.load-more-link {
-  text-align: center; padding: 12px;
-  font-size: 13px; color: var(--accent); cursor: pointer;
-  transition: opacity var(--transition);
-}
-.load-more-link:hover { opacity: 0.8; text-decoration: underline; }
-.load-more-bar {
-  text-align: center; padding: 8px 16px;
-  font-size: 12px; color: var(--text-muted); cursor: pointer;
-  background: var(--glass-bg); border-bottom: 1px solid var(--glass-border);
-  transition: all 0.2s; flex-shrink: 0;
-}
-.load-more-bar:hover { background: var(--glass-bg-hover); color: var(--text); }
 /* Tool badge (kept for compatibility) — glass */
 .tool-badge {
   display: inline-flex; align-items: center; gap: 4px;
@@ -1245,10 +1244,10 @@ a:hover { text-decoration: underline; }
       <div class="dashboard" id="view-sessions" style="display:none;"></div>
       <!-- Conversation View -->
       <div class="conversation" id="view-conversation" style="display:none;">
-        <div class="load-more-bar" id="load-more-bar" style="display:none;" onclick="loadMoreMessages()">
-          <span id="load-more-text">加载更多历史消息...</span>
+        <div class="messages-wrapper">
+          <div class="messages-container" id="messages-container"></div>
+          <div class="scrollbar-markers" id="scrollbar-markers"></div>
         </div>
-        <div class="messages-container" id="messages-container"></div>
         <div class="sse-typing-indicator" id="sse-typing-indicator">
           <div class="sse-typing-dots"><span></span><span></span><span></span></div>
           <span>正在接收...</span>
@@ -1285,9 +1284,7 @@ const state = {
   autoScroll: true,
   currentView: 'dashboard',
   refreshTimers: [],
-  messageLimit: 20,
-  hasMoreMessages: true,
-  loadingMore: false,
+  messageLimit: 9999,
   expandedProjects: {},
   expandedSessions: {},
   // SSE streaming state
@@ -1360,6 +1357,23 @@ function copyStoredKey() {
 function copySessionId() {
   const sid = state.currentSession ? state.currentSession.session_id : '';
   copyToClipboard(sid, '对话码已复制');
+}
+function updateScrollbarMarkers() {
+  const container = document.getElementById('messages-container');
+  const markersEl = document.getElementById('scrollbar-markers');
+  if (!container || !markersEl) return;
+  markersEl.innerHTML = '';
+  const scrollHeight = container.scrollHeight;
+  if (scrollHeight === 0) return;
+  const groups = container.querySelectorAll('.message-group.user');
+  groups.forEach(g => {
+    const top = g.offsetTop;
+    const pct = (top / scrollHeight) * 100;
+    const marker = document.createElement('div');
+    marker.className = 'scrollbar-marker';
+    marker.style.top = pct + '%';
+    markersEl.appendChild(marker);
+  });
 }
 function updateFooterUrl() {
   const el = document.getElementById('footer-url');
@@ -1442,8 +1456,6 @@ function navigateTo(view, data) {
   }
   state.currentView = view;
   document.getElementById('session-id-bar').style.display = 'none';
-  const loadMoreBar = document.getElementById('load-more-bar');
-  if (loadMoreBar) loadMoreBar.style.display = 'none';
   document.getElementById('view-dashboard').style.display = view === 'dashboard' ? '' : 'none';
   document.getElementById('view-sessions').style.display = view === 'sessions' ? '' : 'none';
   document.getElementById('view-conversation').style.display = view === 'conversation' ? '' : 'none';
@@ -1784,77 +1796,12 @@ async function loadMessages() {
   try {
     const data = await apiFetch('/api/projects/' + state.currentProject.hash + '/sessions/' + state.currentSession.session_id + '/messages?last_n=' + state.messageLimit);
     state.messages = data.messages || [];
-    // Always assume there are more messages until loadMore returns 0
-    state.hasMoreMessages = state.messages.length > 0;
     state.autoScroll = true;
     renderMessages();
-    // Show/hide the fixed load-more bar
-    updateLoadMoreBar();
-    // Start SSE stream for real-time updates
+    updateScrollbarMarkers();
     connectSSE();
   } catch (err) {
     container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><h3>加载失败</h3><p>' + escHtml(err.message) + '</p></div>';
-  }
-}
-async function loadMoreMessages() {
-  if (state.loadingMore || !state.hasMoreMessages) return;
-  if (!state.messages.length) return;
-  state.loadingMore = true;
-  updateLoadMoreBar();
-  try {
-    const loadCount = 5;
-    const url = '/api/projects/' + state.currentProject.hash + '/sessions/' + state.currentSession.session_id +
-      '/messages?last_n=' + loadCount + '&offset=' + state.messages.length;
-    // Timeout after 10 seconds
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10000);
-    const data = await apiFetch(url, { signal: controller.signal });
-    clearTimeout(timer);
-    const newMessages = data.messages || [];
-    if (newMessages.length === 0) {
-      state.hasMoreMessages = false;
-    } else {
-      const container = document.getElementById('messages-container');
-      const prevHeight = container.scrollHeight;
-      state.messages = [...newMessages, ...state.messages];
-      if (newMessages.length < loadCount) {
-        state.hasMoreMessages = false;
-      }
-      state.autoScroll = false;
-      renderMessages();
-      container.scrollTop = container.scrollHeight - prevHeight;
-    }
-  } catch (err) {
-    if (err.name === 'AbortError') {
-      showToast('加载超时，请重试', 'error');
-    } else {
-      showToast('加载更多失败: ' + err.message, 'error');
-    }
-    // Don't disable further loading on transient errors
-  }
-  state.loadingMore = false;
-  updateLoadMoreBar();
-}
-function updateLoadMoreBar() {
-  const bar = document.getElementById('load-more-bar');
-  const text = document.getElementById('load-more-text');
-  if (!bar || !text) return;
-  if (state.currentView !== 'conversation') {
-    bar.style.display = 'none';
-    return;
-  }
-  if (state.loadingMore) {
-    bar.style.display = '';
-    text.textContent = '加载中...';
-  } else if (state.hasMoreMessages) {
-    bar.style.display = '';
-    text.textContent = '加载更多历史消息...';
-  } else if (state.messages.length > 0) {
-    bar.style.display = '';
-    text.textContent = '— 已到最早 —';
-    bar.style.cursor = 'default';
-  } else {
-    bar.style.display = 'none';
   }
 }
 function renderMessages() {
@@ -1864,10 +1811,6 @@ function renderMessages() {
     return;
   }
   let html = '';
-  // Load more link
-  if (state.hasMoreMessages) {
-    html += '<div class="load-more-link" onclick="loadMoreMessages()">' + (state.loadingMore ? '加载中...' : '加载更多...') + '</div>';
-  }
   // Group messages by turn
   const groups = groupMessages(state.messages);
   html += groups.map(renderGroup).join('');
@@ -2135,11 +2078,6 @@ document.addEventListener('DOMContentLoaded', () => {
     mc.addEventListener('scroll', () => {
       const distFromBottom = mc.scrollHeight - mc.scrollTop - mc.clientHeight;
       state.autoScroll = distFromBottom < 80;
-      // Auto-load more when scrolled near top
-      if (mc.scrollTop < 100 && state.currentView === 'conversation' &&
-          !state.loadingMore && state.hasMoreMessages && state.messages.length > 0) {
-        loadMoreMessages();
-      }
     });
   } else {
   }
@@ -2371,6 +2309,7 @@ function handleSSEMessage(data) {
 
   // Append to DOM without full re-render
   appendSSEMessageToDOM(msg, container);
+  updateScrollbarMarkers();
 
   if (shouldScroll) {
     container.scrollTop = container.scrollHeight;
