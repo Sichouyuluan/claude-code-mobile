@@ -1,4 +1,3 @@
 @echo off
 cd /d "%~dp0"
-python panel.py
-pause
+start "" pythonw CCM.pyw
