@@ -93,6 +93,8 @@ class Panel(ctk.CTk):
             pass
         self.server_process = None
         self.server_running = False
+        # Kill subprocess when window closes
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
         self._build_ui()
         self.after(500, self._refresh)
 
@@ -251,6 +253,18 @@ class Panel(ctk.CTk):
                 self.status_label.configure(text=f"启动失败: {e}", text_color=RED)
             except Exception:
                 pass
+
+    def _on_close(self):
+        if self.server_process:
+            try:
+                self.server_process.terminate()
+                self.server_process.wait(timeout=3)
+            except Exception:
+                try:
+                    self.server_process.kill()
+                except Exception:
+                    pass
+        self.destroy()
 
     def _stop(self):
         if self.server_process:
