@@ -32,7 +32,9 @@ async def rate_limit_middleware(request: Request, call_next):
     exempt_exact = ("/api/ping", "/api/health", "/api/system", "/api/active",
                     "/api/auth/login", "/api/auth/check", "/api/auth/logout")
     exempt_prefix = ("/api/projects",)
-    if limiter and path not in exempt_exact and not any(path.startswith(p) for p in exempt_prefix):
+    is_read = request.method in ("GET", "HEAD", "OPTIONS")
+    is_exempt = path in exempt_exact or (is_read and any(path.startswith(p) for p in exempt_prefix))
+    if limiter and not is_exempt:
         if limiter.is_banned(client_ip):
             return JSONResponse(status_code=403, content={"error": "你已被暂时封禁"})
         if not limiter.is_allowed(client_ip):

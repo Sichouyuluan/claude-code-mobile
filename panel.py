@@ -369,9 +369,9 @@ class Panel(ctk.CTk):
                 self.local_url.configure(text="--")
                 self.lan_url.configure(text="--")
 
-            # Only update entry if it shows default or current key (not user-edited)
+            # Only update entry if it's empty, shows placeholder, or matches current key
             current_val = self.key_entry.get()
-            if current_val == "--" or current_val == get_api_key():
+            if not current_val or current_val == "--" or current_val == api_key:
                 self.key_entry.delete(0, "end")
                 self.key_entry.insert(0, api_key)
 
