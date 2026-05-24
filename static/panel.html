@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>claude-code-mobile</title>
+<style>
+/* ===== Liquid Glass Design System ===== */
+:root {
+  --bg: #080b14;
+  --card-bg: rgba(255,255,255,0.04);
+  --card-bg-hover: rgba(255,255,255,0.06);
+  --card-border: rgba(255,255,255,0.08);
+  --card-border-hover: rgba(255,255,255,0.14);
+  --glass-blur: 16px;
+  --glass-saturate: 150%;
+  --accent: #3b82f6;
+  --accent-glow: rgba(59,130,246,0.25);
+  --green: #22c55e;
+  --green-glow: rgba(34,197,94,0.2);
+  --red: #ef4444;
+  --red-glow: rgba(239,68,68,0.2);
+  --yellow: #f59e0b;
+  --yellow-glow: rgba(245,158,11,0.2);
+  --text: #e2e8f0;
+  --text2: #94a3b8;
+  --text3: #475569;
+  --inset-shadow: rgba(0,0,0,0.25);
+  --depth-shadow: 0 8px 32px rgba(0,0,0,0.37), 0 2px 8px rgba(0,0,0,0.25);
+  --depth-shadow-hover: 0 14px 44px rgba(0,0,0,0.45), 0 4px 12px rgba(0,0,0,0.3);
+  /* Animated gradient palette */
+  --grad-1: #667eea;
+  --grad-2: #764ba2;
+  --grad-3: #3b82f6;
+  --grad-4: #8b5cf6;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+/* Animated gradient backdrop */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(135deg, var(--grad-1), var(--grad-2), var(--grad-3), var(--grad-4));
+  background-size: 400% 400%;
+  animation: gradientFloat 18s ease-in-out infinite;
+  opacity: 0.10;
+  pointer-events: none;
+}
+@keyframes gradientFloat {
+  0%   { background-position: 0% 50%; }
+  25%  { background-position: 100% 0%; }
+  50%  { background-position: 100% 100%; }
+  75%  { background-position: 0% 100%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* ===== Layout ===== */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 16px 20px;
+  gap: 12px;
+}
+
+/* ===== Title Bar ===== */
+.title-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+.title-bar h1 {
+  font-size: 20px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent), #8b5cf6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.title-bar .subtitle {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 2px;
+}
+
+/* ===== Glass Card ===== */
+.glass-card {
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  box-shadow: var(--depth-shadow), inset 0 1px 1px rgba(255,255,255,0.04);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.glass-card:hover {
+  border-color: var(--card-border-hover);
+  box-shadow: var(--depth-shadow-hover), inset 0 1px 1px rgba(255,255,255,0.06);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px 8px;
+}
+.card-header h2 {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text3);
+}
+.card-body {
+  padding: 0 16px 14px;
+}
+
+/* ===== Top Grid: 3 columns ===== */
+.top-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+/* ===== Status Indicator ===== */
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text3);
+  transition: background 0.3s, box-shadow 0.3s;
+}
+.status-dot.running {
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green-glow), 0 0 20px var(--green-glow);
+}
+.status-dot.stopped {
+  background: var(--text3);
+}
+.status-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ===== Buttons ===== */
+.btn-row {
+  display: flex;
+  gap: 8px;
+}
+.btn {
+  flex: 1;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+.btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.12) 0%, transparent 60%);
+  pointer-events: none;
+}
+.btn:active { transform: scale(0.96); }
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-start {
+  background: var(--green);
+  box-shadow: 0 4px 16px var(--green-glow);
+}
+.btn-start:hover:not(:disabled) {
+  box-shadow: 0 6px 24px var(--green-glow);
+  transform: translateY(-1px);
+}
+.btn-stop {
+  background: var(--red);
+  box-shadow: 0 4px 16px var(--red-glow);
+}
+.btn-stop:hover:not(:disabled) {
+  box-shadow: 0 6px 24px var(--red-glow);
+  transform: translateY(-1px);
+}
+.btn-accent {
+  background: var(--accent);
+  box-shadow: 0 4px 16px var(--accent-glow);
+}
+.btn-accent:hover:not(:disabled) {
+  box-shadow: 0 6px 24px var(--accent-glow);
+  transform: translateY(-1px);
+}
+.btn-ghost {
+  background: rgba(255,255,255,0.06);
+  color: var(--text2);
+  border: 1px solid var(--card-border);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: rgba(255,255,255,0.1);
+  color: var(--text);
+}
+
+/* ===== URL Row ===== */
+.url-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: rgba(0,0,0,0.2);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  border: 1px solid rgba(255,255,255,0.03);
+}
+.url-label {
+  font-size: 10px;
+  color: var(--text3);
+  width: 36px;
+  flex-shrink: 0;
+}
+.url-value {
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 11px;
+  color: var(--text);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin: 0 8px;
+}
+.url-copy {
+  background: none;
+  border: none;
+  color: var(--text3);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.url-copy:hover { color: var(--accent); background: rgba(59,130,246,0.1); }
+
+/* ===== Key Input ===== */
+.key-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.key-input {
+  flex: 1;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 11px;
+  color: var(--accent);
+  outline: none;
+  transition: border-color 0.2s;
+}
+.key-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+/* ===== System Status ===== */
+.sys-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.sys-label {
+  font-size: 12px;
+  color: var(--text2);
+}
+.sys-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+}
+.progress-bar {
+  width: 100%;
+  height: 4px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+  margin: 4px 0 10px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease, background 0.3s;
+  background: var(--green);
+}
+.progress-fill.yellow { background: var(--yellow); }
+.progress-fill.red { background: var(--red); }
+
+/* ===== Log Panel ===== */
+.log-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.log-section .glass-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.log-section .card-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 12px;
+}
+.log-box {
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.03);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text3);
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  resize: none;
+}
+
+/* ===== Toast ===== */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  background: var(--card-bg);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid var(--card-border);
+  color: var(--text);
+  font-size: 12px;
+  box-shadow: var(--depth-shadow);
+  animation: toastIn 0.3s ease, toastOut 0.3s ease 1.7s forwards;
+  z-index: 1000;
+  pointer-events: none;
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes toastOut {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(12px); }
+}
+
+/* ===== Footer ===== */
+.footer {
+  text-align: center;
+  font-size: 10px;
+  color: var(--text3);
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 700px) {
+  .top-grid { grid-template-columns: 1fr; }
+  .app { padding: 10px 12px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Title Bar -->
+  <div class="title-bar">
+    <div>
+      <h1>claude-code-mobile</h1>
+      <div class="subtitle">管理面板</div>
+    </div>
+  </div>
+
+  <!-- Top Grid -->
+  <div class="top-grid">
+    <!-- Column 1: Service Control -->
+    <div class="glass-card">
+      <div class="card-header"><h2>服务状态</h2></div>
+      <div class="card-body">
+        <div class="status-indicator">
+          <div class="status-dot" id="statusDot"></div>
+          <span class="status-text" id="statusText">检测中...</span>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-start" id="btnStart" onclick="startServer()">启动</button>
+          <button class="btn btn-stop" id="btnStop" onclick="stopServer()" disabled>停止</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Column 2: Connection Info -->
+    <div class="glass-card">
+      <div class="card-header"><h2>连接信息</h2></div>
+      <div class="card-body">
+        <div class="url-row">
+          <span class="url-label">本地</span>
+          <span class="url-value" id="localUrl">--</span>
+          <button class="url-copy" onclick="copyText('localUrl')">复制</button>
+        </div>
+        <div class="url-row">
+          <span class="url-label">局域网</span>
+          <span class="url-value" id="lanUrl">--</span>
+          <button class="url-copy" onclick="copyText('lanUrl')">复制</button>
+        </div>
+        <div class="key-row">
+          <input type="password" class="key-input" id="keyInput" placeholder="API 密钥" spellcheck="false">
+          <button class="btn btn-ghost" style="flex:0;padding:7px 10px;" onclick="copyKey()">复制</button>
+          <button class="btn btn-accent" style="flex:0;padding:7px 10px;" onclick="openBrowser()">打开面板</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Column 3: System Status -->
+    <div class="glass-card">
+      <div class="card-header"><h2>系统状态</h2></div>
+      <div class="card-body">
+        <div class="sys-row">
+          <span class="sys-label">CPU</span>
+          <span class="sys-value" id="cpuValue">--</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="cpuBar" style="width:0"></div></div>
+        <div class="sys-row">
+          <span class="sys-label">内存</span>
+          <span class="sys-value" id="memValue">--</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="memBar" style="width:0"></div></div>
+        <div class="sys-row">
+          <span class="sys-label">CC 进程</span>
+          <span class="sys-value" id="ccValue">--</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log Section -->
+  <div class="log-section">
+    <div class="glass-card">
+      <div class="card-header"><h2>日志</h2></div>
+      <div class="card-body">
+        <div class="log-box" id="logBox">暂无日志</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">CCM v1.0</div>
+</div>
+
+<script>
+// ===== State =====
+let keyLoaded = false;
+let keySaving = false;
+
+// ===== Toast =====
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2200);
+}
+
+// ===== Clipboard =====
+function copyText(id) {
+  const el = document.getElementById(id);
+  const text = el.textContent;
+  if (!text || text === '--') return;
+  navigator.clipboard.writeText(text).then(() => showToast('已复制'));
+}
+function copyKey() {
+  const val = document.getElementById('keyInput').value;
+  if (!val) return;
+  navigator.clipboard.writeText(val).then(() => showToast('密钥已复制'));
+}
+
+// ===== Server Control =====
+async function startServer() {
+  const btn = document.getElementById('btnStart');
+  btn.disabled = true;
+  try {
+    const r = await pywebview.api.start_server();
+    showToast(r.message);
+    refreshStatus();
+  } catch(e) {
+    showToast('启动失败');
+  }
+  btn.disabled = false;
+}
+async function stopServer() {
+  const btn = document.getElementById('btnStop');
+  btn.disabled = true;
+  try {
+    const r = await pywebview.api.stop_server();
+    showToast(r.message);
+    refreshStatus();
+  } catch(e) {
+    showToast('停止失败');
+  }
+}
+async function openBrowser() {
+  await pywebview.api.open_browser();
+}
+
+// ===== Progress Bar Color =====
+function barClass(pct) {
+  if (pct >= 85) return 'red';
+  if (pct >= 60) return 'yellow';
+  return '';
+}
+
+// ===== Refresh Status =====
+async function refreshStatus() {
+  try {
+    const s = await pywebview.api.get_status();
+
+    // Status dot + text
+    const dot = document.getElementById('statusDot');
+    const txt = document.getElementById('statusText');
+    if (s.server_running) {
+      dot.className = 'status-dot running';
+      txt.textContent = '服务运行中';
+      txt.style.color = '#22c55e';
+    } else {
+      dot.className = 'status-dot stopped';
+      txt.textContent = '服务已停止';
+      txt.style.color = '#475569';
+    }
+
+    // Buttons
+    document.getElementById('btnStart').disabled = s.server_running;
+    document.getElementById('btnStop').disabled = !s.server_running;
+
+    // URLs
+    document.getElementById('localUrl').textContent = s.local_url;
+    document.getElementById('lanUrl').textContent = s.lan_url;
+
+    // Key (only load once)
+    if (!keyLoaded) {
+      document.getElementById('keyInput').value = s.api_key;
+      keyLoaded = true;
+    }
+
+    // System
+    document.getElementById('cpuValue').textContent = s.cpu_percent.toFixed(1) + '%';
+    const cpuBar = document.getElementById('cpuBar');
+    cpuBar.style.width = s.cpu_percent + '%';
+    cpuBar.className = 'progress-fill ' + barClass(s.cpu_percent);
+
+    document.getElementById('memValue').textContent =
+      s.memory_percent.toFixed(1) + '%  (' + s.memory_used_gb + '/' + s.memory_total_gb + ' GB)';
+    const memBar = document.getElementById('memBar');
+    memBar.style.width = s.memory_percent + '%';
+    memBar.className = 'progress-fill ' + barClass(s.memory_percent);
+
+    document.getElementById('ccValue').textContent = s.cc_count + ' 个';
+  } catch(e) {
+    // pywebview not ready yet
+  }
+}
+
+// ===== Refresh Logs =====
+async function refreshLogs() {
+  try {
+    const r = await pywebview.api.get_logs();
+    const box = document.getElementById('logBox');
+    const wasAtBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 30;
+    box.textContent = r.logs;
+    if (wasAtBottom) {
+      box.scrollTop = box.scrollHeight;
+    }
+  } catch(e) {
+    // pywebview not ready yet
+  }
+}
+
+// ===== Key Auto-save =====
+document.getElementById('keyInput').addEventListener('input', async function() {
+  if (keySaving) return;
+  const newKey = this.value.trim();
+  if (!newKey || newKey.length < 8) return;
+  keySaving = true;
+  try {
+    const r = await pywebview.api.save_api_key(newKey);
+    if (r.success) {
+      showToast('密钥已保存');
+    } else {
+      showToast(r.message);
+    }
+  } catch(e) {
+    showToast('保存失败');
+  }
+  keySaving = false;
+});
+
+// ===== Auto Refresh =====
+function startRefresh() {
+  refreshStatus();
+  refreshLogs();
+  setInterval(refreshStatus, 3000);
+  setInterval(refreshLogs, 3000);
+}
+
+// Wait for pywebview to be ready
+if (window.pywebview && window.pywebview.api) {
+  startRefresh();
+} else {
+  window.addEventListener('pywebviewready', startRefresh);
+}
+</script>
+</body>
+</html>

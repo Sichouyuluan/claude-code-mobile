@@ -10,7 +10,7 @@ import time
 
 logger = logging.getLogger("cc_dashboard")
 
-from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from cc_monitor.routes.auth import require_auth
@@ -113,6 +113,11 @@ async def send_message(project_hash: str, session_id: str, request: Request):
     if not message:
         return JSONResponse(status_code=400, content={"error": "消息不能为空"})
     cwd = body.get("cwd")
+    # Fallback: read cwd from session metadata if not provided
+    if not cwd:
+        reader = _get_reader()
+        meta = reader._read_meta_from_session(project_hash, session_id)
+        cwd = meta.get("cwd", "")
     result = await _get_sender().send_message(session_id, message, cwd=cwd)
     return result
 
@@ -369,3 +374,48 @@ async def stream_session(project_hash: str, session_id: str, request: Request):
 @router.get("/api/health")
 async def health():
     return {"status": "ok"}
+
+
+@router.websocket("/ws/terminal/{project_hash}/{session_id}")
+async def terminal_stream(websocket: WebSocket, project_hash: str, session_id: str):
+    await websocket.accept()
+    try:
+        auth_header = websocket.query_params.get("key", "")
+        from cc_monitor.routes.auth import get_api_key as _get_key
+        if auth_header != _get_key():
+            await websocket.close(code=4001, reason="unauthorized")
+            return
+
+        _validate_id(project_hash, "project_hash")
+        _validate_id(session_id, "session_id")
+
+        # Read cwd from session metadata
+        reader = _get_reader()
+        meta = reader._read_meta_from_session(project_hash, session_id)
+        cwd = meta.get("cwd", "")
+
+        # Wait for client to send the first message
+        data = await websocket.receive_text()
+        msg_data = json.loads(data)
+        message = msg_data.get("message", "").strip()
+        if not message:
+            await websocket.send_json({"type": "error", "message": "消息不能为空"})
+            await websocket.close()
+            return
+
+        # Stream CLI output
+        sender = _get_sender()
+        async for event in sender.send_message_stream(session_id, message, cwd=cwd):
+            await websocket.send_json(event)
+    except WebSocketDisconnect:
+        logger.info(f"[WS] client disconnected: {session_id[:12]}")
+    except Exception as e:
+        logger.error(f"[WS] error: {e}")
+        try:
+            await websocket.send_json({"type": "error", "message": str(e)})
+        except Exception:
+            pass
+        try:
+            await websocket.close()
+        except Exception:
+            pass

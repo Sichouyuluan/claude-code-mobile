@@ -1042,6 +1042,76 @@ a:hover { text-decoration: underline; }
   box-shadow: 0 2px 6px rgba(59,130,246,0.3), inset 0 2px 4px rgba(0,0,0,0.2);
 }
 .send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+/* Mode toggle button */
+.mode-toggle {
+  position: absolute; right: 118px; bottom: 18px;
+  width: 36px; height: 36px; border-radius: 50%;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  backdrop-filter: blur(10px) saturate(150%);
+  color: var(--text2); font-size: 10px; font-weight: 700;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s ease; z-index: 5;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.mode-toggle:hover {
+  border-color: var(--accent); color: var(--accent);
+  box-shadow: 0 2px 12px rgba(59,130,246,0.2);
+}
+.mode-toggle.active {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
+/* Terminal view */
+.terminal-view {
+  flex: 1; display: none; flex-direction: column;
+  background: #0a0e18; overflow: hidden; min-height: 0;
+}
+.terminal-view.active { display: flex; }
+.terminal-output {
+  flex: 1; overflow-y: auto; padding: 16px;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 13px; line-height: 1.7; color: #c9d1d9;
+  background: #0a0e18;
+}
+.terminal-output::-webkit-scrollbar { width: 5px; }
+.terminal-output::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+.term-line { margin-bottom: 4px; white-space: pre-wrap; word-break: break-word; }
+.term-thinking {
+  padding: 8px 12px; margin: 6px 0; border-radius: 8px;
+  background: rgba(139,92,246,0.08); border-left: 3px solid #8b5cf6;
+  color: #a78bfa; font-size: 12px; cursor: pointer;
+}
+.term-thinking.collapsed { max-height: 24px; overflow: hidden; }
+.term-thinking-header { font-weight: 600; font-size: 11px; color: #8b5cf6; margin-bottom: 4px; }
+.term-tool {
+  padding: 8px 12px; margin: 6px 0; border-radius: 8px;
+  background: rgba(59,130,246,0.08); border-left: 3px solid var(--accent);
+}
+.term-tool-header { font-weight: 600; font-size: 12px; color: var(--accent); display: flex; align-items: center; gap: 6px; }
+.term-tool-input {
+  margin-top: 4px; padding: 6px 10px; border-radius: 6px;
+  background: rgba(0,0,0,0.3); font-size: 11px; color: var(--text2);
+  max-height: 120px; overflow-y: auto;
+}
+.term-tool-result {
+  padding: 8px 12px; margin: 4px 0 6px; border-radius: 8px;
+  background: rgba(34,197,94,0.06); border-left: 3px solid var(--green);
+  font-size: 12px; color: var(--text2); max-height: 200px; overflow-y: auto;
+}
+.term-result {
+  padding: 10px 12px; margin: 8px 0; border-radius: 8px;
+  background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border);
+  font-size: 11px; color: var(--text3);
+}
+.term-result span { color: var(--text2); }
+.term-status {
+  padding: 8px 16px; border-top: 1px solid var(--glass-border);
+  background: rgba(0,0,0,0.3); font-size: 11px; color: var(--text3);
+  display: flex; gap: 16px; flex-shrink: 0;
+}
+.term-status .connected { color: var(--green); }
+.term-status .disconnected { color: var(--red); }
 .image-preview {
   display: none; padding: 8px 20px;
   background: var(--glass-bg);
@@ -1113,10 +1183,13 @@ a:hover { text-decoration: underline; }
   .message-group.assistant { max-width: 92%; }
   .session-card { padding: 14px 16px; }
   .message-input-area {
-    padding-bottom: max(16px, env(safe-area-inset-bottom, 28px));
+    padding-bottom: max(20px, env(safe-area-inset-bottom, 40px));
   }
   .input-row textarea {
     min-height: 48px;
+  }
+  .mode-toggle {
+    right: 70px !important;
   }
 }
 @media (max-width: 400px) {
@@ -1171,7 +1244,7 @@ a:hover { text-decoration: underline; }
 <div id="login-page">
   <div class="login-card">
     <img class="logo-icon" src="/static/icon.png" alt="CCM" />
-    <h1>claude-code-mobile</h1>
+    <h1>claude-code-mobile <span style="font-size:11px;color:var(--text3);font-weight:400;">v2.0</span></h1>
     <p class="subtitle">远程监控 Claude Code 工作状态</p>
     <form id="login-form" onsubmit="return handleLogin(event)">
       <div class="input-group">
@@ -1265,6 +1338,13 @@ a:hover { text-decoration: underline; }
           <div class="messages-container" id="messages-container"></div>
           <div class="scrollbar-markers" id="scrollbar-markers"></div>
         </div>
+        <div class="terminal-view" id="terminal-view">
+          <div class="terminal-output" id="terminal-output"></div>
+          <div class="term-status" id="term-status">
+            <span class="disconnected" id="term-status-text">未连接</span>
+            <span id="term-cost"></span>
+          </div>
+        </div>
         <div class="sse-typing-indicator" id="sse-typing-indicator">
           <div class="sse-typing-dots"><span></span><span></span><span></span></div>
           <span>正在接收...</span>
@@ -1274,7 +1354,8 @@ a:hover { text-decoration: underline; }
           <span class="preview-info" id="preview-info"></span>
           <button class="preview-remove" onclick="removePreview()">&times;</button>
         </div>
-        <div class="message-input-area">
+        <div class="message-input-area" style="position:relative;">
+          <button class="mode-toggle" id="mode-toggle" onclick="toggleMode()" title="切换终端模式">CLI</button>
           <div class="input-row">
             <button class="btn-icon" onclick="triggerUpload()" title="上传图片" style="font-size:16px;">&#128247;</button>
             <input type="file" id="file-input" accept="image/*" style="display:none;" onchange="handleUpload(this)" />
@@ -2129,6 +2210,15 @@ async function sendMessage() {
   const text = input.value.trim();
   if (!text && !pendingFile) return;
   if (!state.currentProject || !state.currentSession) return;
+  // Terminal mode
+  if (termMode === 'terminal') {
+    if (text) {
+      sendTermMessage(text);
+      input.value = '';
+      input.style.height = 'auto';
+    }
+    return;
+  }
   const sendBtn = document.getElementById('send-btn');
   sendBtn.disabled = true;
   try {
@@ -2146,7 +2236,7 @@ async function sendMessage() {
     } else {
       await apiFetch('/api/projects/' + state.currentProject.hash + '/sessions/' + state.currentSession.session_id + '/send', {
         method: 'POST',
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, cwd: state.currentProject.path || '' }),
         headers: { 'Content-Type': 'application/json' }
       });
       // Don't push here — SSE stream will deliver the message from JSONL
@@ -2159,6 +2249,157 @@ async function sendMessage() {
     showToast('发送失败: ' + err.message, 'error');
   }
   sendBtn.disabled = false;
+}
+
+/* ===== Terminal Mode ===== */
+let termMode = 'conversation'; // 'conversation' | 'terminal'
+let termWs = null;
+let termStreaming = false;
+
+function toggleMode() {
+  termMode = termMode === 'conversation' ? 'terminal' : 'conversation';
+  const btn = document.getElementById('mode-toggle');
+  const msgWrapper = document.querySelector('.messages-wrapper');
+  const termView = document.getElementById('terminal-view');
+  const typingEl = document.getElementById('sse-typing-indicator');
+  if (termMode === 'terminal') {
+    btn.textContent = '会话';
+    btn.classList.add('active');
+    msgWrapper.style.display = 'none';
+    typingEl.style.display = 'none';
+    termView.classList.add('active');
+    connectTerminal();
+  } else {
+    btn.textContent = 'CLI';
+    btn.classList.remove('active');
+    msgWrapper.style.display = '';
+    termView.classList.remove('active');
+    if (typingEl && state.sseConnected) typingEl.style.display = '';
+    disconnectTerminal();
+  }
+}
+
+function connectTerminal() {
+  if (termWs && termWs.readyState <= 1) return;
+  if (!state.currentProject || !state.currentSession) {
+    showToast('请先选择会话', 'error');
+    return;
+  }
+  const hash = state.currentProject.hash;
+  const sid = state.currentSession.session_id;
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const url = proto + '//' + location.host + '/ws/terminal/' + hash + '/' + sid + '?key=' + encodeURIComponent(state.apiKey);
+  termWs = new WebSocket(url);
+  termWs.onopen = () => {
+    document.getElementById('term-status-text').textContent = '已连接';
+    document.getElementById('term-status-text').className = 'connected';
+  };
+  termWs.onmessage = (evt) => {
+    try {
+      const data = JSON.parse(evt.data);
+      renderTermEvent(data);
+    } catch(e) {}
+  };
+  termWs.onclose = () => {
+    document.getElementById('term-status-text').textContent = '已断开';
+    document.getElementById('term-status-text').className = 'disconnected';
+    termStreaming = false;
+    updateSendBtnState();
+  };
+  termWs.onerror = () => {
+    document.getElementById('term-status-text').textContent = '连接错误';
+    document.getElementById('term-status-text').className = 'disconnected';
+  };
+}
+
+function disconnectTerminal() {
+  if (termWs) {
+    try { termWs.close(); } catch(e) {}
+    termWs = null;
+  }
+  termStreaming = false;
+}
+
+function sendTermMessage(text) {
+  if (!termWs || termWs.readyState !== 1) {
+    showToast('终端未连接', 'error');
+    return;
+  }
+  termStreaming = true;
+  updateSendBtnState();
+  const out = document.getElementById('terminal-output');
+  // Add user message
+  const userLine = document.createElement('div');
+  userLine.className = 'term-line';
+  userLine.innerHTML = '<span style="color:var(--accent);font-weight:600;">You: </span>' + escHtml(text);
+  out.appendChild(userLine);
+  out.scrollTop = out.scrollHeight;
+  // Send to server
+  termWs.send(JSON.stringify({ message: text }));
+}
+
+function renderTermEvent(data) {
+  const out = document.getElementById('terminal-output');
+  const t = data.type;
+  if (t === 'system') {
+    const line = document.createElement('div');
+    line.className = 'term-result';
+    line.innerHTML = '<span>System:</span> 模型=' + escHtml(data.model || '') + ' 会话=' + escHtml((data.session_id||'').slice(0,8));
+    out.appendChild(line);
+  } else if (t === 'assistant') {
+    const msg = data.message || {};
+    for (const block of (msg.content || [])) {
+      if (block.type === 'thinking') {
+        const el = document.createElement('div');
+        el.className = 'term-thinking collapsed';
+        el.innerHTML = '<div class="term-thinking-header">Thinking (点击展开)</div><div class="term-thinking-body">' + escHtml(block.thinking || '') + '</div>';
+        el.onclick = () => el.classList.toggle('collapsed');
+        out.appendChild(el);
+      } else if (block.type === 'text') {
+        const el = document.createElement('div');
+        el.className = 'term-line';
+        el.innerHTML = renderMarkdown(block.text || '');
+        out.appendChild(el);
+      } else if (block.type === 'tool_use') {
+        const el = document.createElement('div');
+        el.className = 'term-tool';
+        const inputStr = JSON.stringify(block.input || {}, null, 2);
+        el.innerHTML = '<div class="term-tool-header">&#9881; ' + escHtml(block.name || '') + '</div>'
+          + '<div class="term-tool-input">' + escHtml(inputStr.slice(0, 500)) + '</div>';
+        out.appendChild(el);
+      }
+    }
+  } else if (t === 'tool_result') {
+    const el = document.createElement('div');
+    el.className = 'term-tool-result';
+    const content = typeof data.content === 'string' ? data.content : JSON.stringify(data.content || '');
+    el.innerHTML = '<span style="color:var(--green);font-weight:600;">Result:</span> ' + escHtml(content.slice(0, 1000));
+    out.appendChild(el);
+  } else if (t === 'result') {
+    const el = document.createElement('div');
+    el.className = 'term-result';
+    el.innerHTML = '<span>Done.</span> 轮次=' + (data.num_turns||0) + ' 花费=$' + (data.total_cost_usd||0).toFixed(4) + ' 模型=' + escHtml(data.model||'');
+    out.appendChild(el);
+    document.getElementById('term-cost').textContent = '$' + (data.total_cost_usd||0).toFixed(4);
+    termStreaming = false;
+    updateSendBtnState();
+  } else if (t === 'error') {
+    const el = document.createElement('div');
+    el.className = 'term-line';
+    el.innerHTML = '<span style="color:var(--red);">Error: </span>' + escHtml(data.message || 'unknown');
+    out.appendChild(el);
+    termStreaming = false;
+    updateSendBtnState();
+  } else if (t === 'done') {
+    termStreaming = false;
+    updateSendBtnState();
+  }
+  out.scrollTop = out.scrollHeight;
+}
+
+function updateSendBtnState() {
+  const btn = document.getElementById('send-btn');
+  btn.disabled = termStreaming;
 }
 document.addEventListener('DOMContentLoaded', () => {
   const mc = document.getElementById('messages-container');

@@ -7,6 +7,34 @@ from pathlib import Path
 
 logger = logging.getLogger("cc_dashboard")
 
+SESSIONS_DIR = Path.home() / ".claude" / "sessions"
+PROJECTS_DIR = Path.home() / ".claude" / "projects"
+
+
+def detect_model_from_session(session_id: str) -> str:
+    """Read the JSONL for this session and return the model name from the first assistant message."""
+    # Find the JSONL file across all project dirs
+    for proj_dir in PROJECTS_DIR.iterdir():
+        if not proj_dir.is_dir():
+            continue
+        jsonl = proj_dir / f"{session_id}.jsonl"
+        if not jsonl.exists():
+            continue
+        try:
+            with open(jsonl, "r", encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    try:
+                        obj = json.loads(line)
+                        if obj.get("type") == "assistant":
+                            model = obj.get("message", {}).get("model", "")
+                            if model and model != "<synthetic>":
+                                return model
+                    except json.JSONDecodeError:
+                        continue
+        except Exception:
+            continue
+    return ""
+
 
 class ClaudeSender:
     def __init__(self, claude_binary: str = None):
@@ -15,7 +43,11 @@ class ClaudeSender:
         self.claude_binary = claude_binary
 
     async def send_message(self, session_id: str, message: str,
-                          cwd: str = None, timeout: int = 300) -> dict:
+                          cwd: str = None, model: str = None,
+                          timeout: int = 300) -> dict:
+        # Auto-detect model from session JSONL if not provided
+        if not model:
+            model = detect_model_from_session(session_id)
         args = [
             self.claude_binary, "--print",
             "--resume", session_id,
@@ -23,6 +55,8 @@ class ClaudeSender:
             "--output-format", "json",
             "--dangerously-skip-permissions",
         ]
+        if model:
+            args.extend(["--model", model])
         success, stdout, stderr, duration = await self._run_claude(args, cwd, timeout)
         if not success:
             return {
@@ -39,6 +73,44 @@ class ClaudeSender:
             "duration_seconds": duration,
             "usage": parsed.get("usage", {}),
         }
+
+    async def send_message_stream(self, session_id: str, message: str,
+                                   cwd: str = None, model: str = None):
+        """Launch CLI with stream-json output and yield parsed lines as async generator."""
+        if not model:
+            model = detect_model_from_session(session_id)
+        args = [
+            self.claude_binary, "--print",
+            "--resume", session_id,
+            message,
+            "--output-format", "stream-json",
+            "--verbose",
+            "--dangerously-skip-permissions",
+        ]
+        if model:
+            args.extend(["--model", model])
+        logger.info(f"[CC STREAM] session={session_id[:12]} model={model}")
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *args,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=cwd,
+            )
+            async for line in proc.stdout:
+                text = line.decode("utf-8", errors="replace").strip()
+                if not text:
+                    continue
+                try:
+                    obj = json.loads(text)
+                    yield obj
+                except json.JSONDecodeError:
+                    yield {"type": "raw", "text": text}
+            await proc.wait()
+            yield {"type": "done", "returncode": proc.returncode}
+        except Exception as e:
+            logger.error(f"[CC STREAM] error: {e}")
+            yield {"type": "error", "message": str(e)}
 
     async def start_new_session(self, message: str, cwd: str = None,
                                model: str = None, timeout: int = 300) -> dict:
