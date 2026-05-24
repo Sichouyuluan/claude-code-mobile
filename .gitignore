@@ -23,6 +23,11 @@ logs/
 参考项目/
 plan.md
 CLAUDE.md
+tasks/
+TEST_PLAN.md
+TEST_REPORT.md
+*.code-workspace
+test_panel_screenshot.png
 
 # Node (if used for dev)
 node_modules/
