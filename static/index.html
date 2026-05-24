@@ -1395,6 +1395,7 @@ const state = {
   sseTypingEl: null,
   sseTypewriterQueue: [],
   sseTypewriterRunning: false,
+  sseTypewriterStopped: false,
 };
 document.addEventListener('DOMContentLoaded', () => {
   const savedKey = localStorage.getItem('cc_api_key');
@@ -2212,7 +2213,7 @@ async function sendMessage() {
   if (!state.currentProject || !state.currentSession) return;
   // Terminal mode
   if (termMode === 'terminal') {
-    if (text) {
+    if (text && !termStreaming) {
       sendTermMessage(text);
       input.value = '';
       input.style.height = 'auto';
@@ -2274,7 +2275,7 @@ function toggleMode() {
     btn.classList.remove('active');
     msgWrapper.style.display = '';
     termView.classList.remove('active');
-    if (typingEl && state.sseConnected) typingEl.style.display = '';
+    if (typingEl && state.sseConnection) typingEl.classList.add('visible');
     disconnectTerminal();
   }
 }
@@ -2538,7 +2539,7 @@ function connectSSE() {
   const sep = url.includes('?') ? '&' : '?';
   const es = new EventSource(url + sep + 'api_key=' + encodeURIComponent(state.apiKey));
   state.sseConnection = es;
-  state.sseReconnectDelay = 1000;
+  state.sseTypewriterStopped = false;
 
   es.onopen = () => {
     state.sseReconnectDelay = 1000;
@@ -2604,6 +2605,7 @@ function disconnectSSE() {
   // Clear typewriter state
   state.sseTypewriterQueue = [];
   state.sseTypewriterRunning = false;
+  state.sseTypewriterStopped = true;
 }
 
 function handleSSEMessage(data) {
@@ -2797,7 +2799,7 @@ function runTypewriterQueue() {
   cursor.className = 'typewriter-cursor';
 
   function tick() {
-    if (idx >= text.length) {
+    if (state.sseTypewriterStopped || idx >= text.length) {
       // Done: replace with final rendered markdown
       el.innerHTML = renderMarkdown(text);
       runTypewriterQueue();

@@ -75,7 +75,7 @@ claude-code-mobile 是一个本地 Web 服务，运行在你的电脑上。它�
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/your-username/claude-code-mobile.git
+git clone https://github.com/Sichouyuluan/claude-code-mobile.git
 cd claude-code-mobile
 
 # 2. 安装依赖
@@ -323,7 +323,7 @@ claude-code-mobile is a local web service that lets you monitor and manage your 
 ### Quick Start
 
 ```bash
-git clone https://github.com/your-username/claude-code-mobile.git
+git clone https://github.com/Sichouyuluan/claude-code-mobile.git
 cd claude-code-mobile
 pip install -r requirements.txt
 python panel.py  # Opens desktop management panel

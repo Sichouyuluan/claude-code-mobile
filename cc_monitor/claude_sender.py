@@ -90,6 +90,7 @@ class ClaudeSender:
         if model:
             args.extend(["--model", model])
         logger.info(f"[CC STREAM] session={session_id[:12]} model={model}")
+        proc = None
         try:
             proc = await asyncio.create_subprocess_exec(
                 *args,
@@ -111,6 +112,12 @@ class ClaudeSender:
         except Exception as e:
             logger.error(f"[CC STREAM] error: {e}")
             yield {"type": "error", "message": str(e)}
+        finally:
+            if proc and proc.returncode is None:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
 
     async def start_new_session(self, message: str, cwd: str = None,
                                model: str = None, timeout: int = 300) -> dict:

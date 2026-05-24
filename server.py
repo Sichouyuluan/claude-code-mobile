@@ -23,7 +23,7 @@ load_config()
 
 
 def _load_or_generate_api_key() -> str:
-    key = os.environ.get("CC_DASHBOARD_API_KEY")
+    key = os.environ.get("CC_DASHBOARD_API_KEY", "")
     if key:
         return key
     key_file = os.path.join(get_project_root(), ".api_key")
