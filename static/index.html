@@ -125,7 +125,7 @@ body {
 code, pre, .mono {
   font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
 }
-::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar { width: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb); border-radius: 3px;
@@ -154,7 +154,7 @@ a:hover { text-decoration: underline; }
 @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
 #login-page {
   display: flex; align-items: center; justify-content: center;
-  height: 100vh; background: var(--bg);
+  height: 100dvh; height: var(--vh, 100vh); background: var(--bg);
   position: relative; overflow: hidden;
 }
 #login-page::before {
@@ -288,7 +288,7 @@ a:hover { text-decoration: underline; }
   transform: translateY(1px) scale(0.95);
   box-shadow: inset 0 2px 4px var(--inset-shadow);
 }
-#app { display: none; height: 100vh; overflow: hidden; }
+#app { display: none; height: 100dvh; height: var(--vh, 100vh); overflow: hidden; }
 .app-layout { display: flex; height: 100%; }
 .sidebar {
   width: 260px; min-width: 260px; height: 100%;
@@ -710,7 +710,7 @@ a:hover { text-decoration: underline; }
   border: 1px solid rgba(255,255,255,0.12);
   border-bottom-right-radius: 4px;
   font-size: 14px; line-height: 1.6;
-  word-wrap: break-word; overflow-wrap: break-word;
+  word-wrap: break-word; overflow-wrap: break-word; white-space: pre-wrap;
   box-shadow: 0 4px 16px rgba(59,130,246,0.25), inset 0 1px 1px rgba(255,255,255,0.15);
 }
 .group-bubble-user p { margin-bottom: 8px; }
@@ -1044,7 +1044,7 @@ a:hover { text-decoration: underline; }
 .send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 /* Mode toggle button */
 .mode-toggle {
-  position: absolute; right: 118px; bottom: 18px;
+  position: absolute; right: 16px; bottom: 18px;
   width: 36px; height: 36px; border-radius: 50%;
   border: 1px solid var(--glass-border);
   background: var(--glass-bg);
@@ -1189,7 +1189,7 @@ a:hover { text-decoration: underline; }
     min-height: 48px;
   }
   .mode-toggle {
-    right: 70px !important;
+    right: 10px !important;
   }
 }
 @media (max-width: 400px) {
@@ -1300,8 +1300,8 @@ a:hover { text-decoration: underline; }
           <button class="session-id-copy" onclick="copySessionId()" title="复制完整对话码">&#128203;</button>
         </div>
         <div class="topbar-actions">
-          <button class="btn btn-sm btn-secondary" id="back-btn" style="display:none;" onclick="goBack()">&#8592; 返回</button>
-          <button class="btn btn-sm btn-secondary" id="refresh-btn" onclick="refreshCurrent()">&#8635; 刷新</button>
+          <button class="btn btn-sm btn-secondary" id="back-btn" style="display:none;padding:6px 10px;" onclick="goBack()" title="返回">&#8592;</button>
+          <button class="btn btn-sm btn-secondary" id="refresh-btn" style="padding:6px 10px;" onclick="refreshCurrent()" title="刷新">&#8635;</button>
         </div>
       </div>
       <!-- Dashboard View -->
@@ -1398,6 +1398,17 @@ const state = {
   sseTypewriterStopped: false,
 };
 document.addEventListener('DOMContentLoaded', () => {
+  // Fix mobile viewport height (100dvh fallback)
+  function setVH() {
+    const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    document.documentElement.style.setProperty('--vh', vh + 'px');
+  }
+  setVH();
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', setVH);
+  }
+  window.addEventListener('resize', setVH);
+
   const savedKey = localStorage.getItem('cc_api_key');
   if (savedKey) {
     state.apiKey = savedKey;
@@ -1774,7 +1785,7 @@ async function toggleProjectExpand(hash) {
     if (proj && !proj._recentSessions) {
       try {
         const data = await apiFetch('/api/projects/' + hash + '/sessions');
-        const sessions = (data.sessions || []).sort((a, b) => (b.size_kb || 0) - (a.size_kb || 0));
+        const sessions = (data.sessions || []).filter(s => s.size_kb && s.size_kb > 0).sort((a, b) => (b.size_kb || 0) - (a.size_kb || 0));
         proj._recentSessions = sessions.slice(0, 3);
       } catch {
         proj._recentSessions = [];
@@ -1800,7 +1811,7 @@ async function loadSessions() {
   container.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:20px;"><div class="loading-spinner"></div><span style="color:var(--text-muted);font-size:14px;">加载会话中...</span></div>';
   try {
     const data = await apiFetch('/api/projects/' + state.currentProject.hash + '/sessions');
-    state.sessions = (data.sessions || []).sort((a, b) => (b.size_kb || 0) - (a.size_kb || 0));
+    state.sessions = (data.sessions || []).filter(s => s.size_kb && s.size_kb > 0).sort((a, b) => (b.size_kb || 0) - (a.size_kb || 0));
     renderSessions();
   } catch (err) {
     container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><h3>加载失败</h3><p>' + escHtml(err.message) + '</p></div>';
@@ -1925,11 +1936,11 @@ function renderMessages() {
     }
     state._roundsInit = true;
   }
+  // Build all HTML first, then single DOM write
   let html = '';
-  rounds.forEach((round, idx) => {
-    html += renderRound(round, idx, rounds.length);
-  });
-  // Busy indicator if last assistant message is still working
+  for (let i = 0; i < rounds.length; i++) {
+    html += renderRound(rounds[i], i, rounds.length);
+  }
   const lastMsg = state.messages[state.messages.length - 1];
   if (lastMsg && lastMsg.type === 'assistant' && lastMsg.stop_reason === 'tool_use') {
     html += '<div class="busy-indicator"><span class="busy-dot"></span> 正在执行...</div>';
@@ -2132,9 +2143,11 @@ function toggleCollapsible(header) {
   if (body) body.classList.toggle('open');
 }
 function copyCodeBlock(btn) {
-  const code = btn.closest('.code-block').querySelector('code');
-  if (!code) return;
-  navigator.clipboard.writeText(code.textContent).then(() => {
+  const block = btn.closest('.code-block') || btn.closest('.tool-result-block') || btn.closest('.tool-result-content');
+  if (!block) return;
+  const code = block.querySelector('code') || block.querySelector('pre');
+  const text = code ? code.textContent : block.textContent;
+  navigator.clipboard.writeText(text).then(() => {
     btn.textContent = '已复制';
     setTimeout(() => { btn.textContent = '复制'; }, 1500);
   }).catch(() => {

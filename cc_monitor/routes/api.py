@@ -381,9 +381,9 @@ async def terminal_stream(websocket: WebSocket, project_hash: str, session_id: s
     await websocket.accept()
     try:
         auth_header = websocket.query_params.get("key", "")
-        from cc_monitor.routes.auth import get_api_key as _get_key
+        from cc_monitor.state import app_state
         import hmac
-        if not hmac.compare_digest(auth_header, _get_key()):
+        if not hmac.compare_digest(auth_header, app_state.api_key or ""):
             await websocket.close(code=4001, reason="unauthorized")
             return
 
