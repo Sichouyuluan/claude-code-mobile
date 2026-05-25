@@ -19,47 +19,93 @@ claude-code-mobile 是一个本地 Web 服务，运行在你的电脑上。它�
 
 ---
 
+## 界面预览
+
+### 电脑端 — 登录页面
+
+输入 API 密钥登录，首次访问会自动提示密钥。
+
+![电脑登录页面](image/TEST_PLAN/tokenplan/电脑登录页面.png)
+
+### 电脑端 — 首页仪表盘
+
+显示所有 Claude Code 项目列表，包含项目路径、会话数量、最近活动时间。左侧边栏可快速切换项目。
+
+![电脑首页](image/TEST_PLAN/tokenplan/电脑首页.png)
+
+### 电脑端 — 对话页面
+
+分层渲染对话消息，支持 thinking 折叠、工具调用详情展开、代码复制按钮。底部输入框可远程发送消息。
+
+![电脑对话页面](image/TEST_PLAN/tokenplan/8ac04ce2-a7a3-43ac-b652-7099997a2c0a.png)
+
+### 电脑端 — 服务器管理面板
+
+PyWebView Liquid Glass UI 桌面面板，一键启停服务器，实时显示 CPU/内存/进程状态，日志查看器每 3 秒自动刷新。
+
+![服务器后台面板](image/TEST_PLAN/tokenplan/电脑服务器后台面板.png)
+
+### 手机端 — 首页
+
+移动端自适应布局，显示项目列表和系统状态卡片。
+
+![手机首页](image/TEST_PLAN/tokenplan/手机首页.jpg)
+
+### 手机端 — 对话列表
+
+显示当前项目的所有会话，按大小排序，星标标记最大会话。
+
+![手机对话列表](image/TEST_PLAN/tokenplan/手机对话列表.jpg)
+
+### 手机端 — 对话页面
+
+手机上查看完整对话，支持 thinking 折叠、工具调用详情、代码复制。右侧浮动按钮切换终端模式。
+
+![手机对话页面](image/TEST_PLAN/tokenplan/手机对话页面.jpg)
+
+---
+
 ## 功能详解
 
 ### 网页面板（手机/浏览器访问）
 
 | 功能 | 说明 |
 |------|------|
-| 项目列表 | 自动扫描 `~/.claude/projects/` 下的所有项目 |
-| 会话列表 | 每个项目下的所有对话，显示最近活动时间和消息数 |
-| 对话查看 | 分层渲染，按轮次折叠，支持 thinking 内容、工具调用详情 |
-| 远程发消息 | 输入框发送消息，自动检测会话使用的模型，通过 CLI 注入 |
+| 项目列表 | 自动扫描 `~/.claude/projects/` 下的所有项目，显示路径和会话数 |
+| 会话列表 | 每个项目下的所有对话，按大小排序，星标最大会话，显示活动时间 |
+| 对话查看 | 分层渲染（Round Folding），按轮次折叠，支持 thinking 内容、工具调用详情 |
+| 远程发消息 | 输入框发送消息，自动检测会话使用的模型（MiMo/DeepSeek/Claude），通过 CLI 注入 |
 | 图片上传 | 支持上传图片发送给 Claude 分析 |
-| 搜索过滤 | 按关键词搜索会话内容 |
-| SSE 实时推送 | 新消息自动推送，无需手动刷新 |
+| SSE 实时推送 | 新消息自动推送，无需手动刷新，打字机效果逐字显示 |
 | 会话 ID 显示 | 顶部显示完整会话 ID，一键复制 |
 | 代码复制按钮 | 代码块右上角一键复制 |
-| XSS 防护 | 所有 URL 经过安全过滤 |
+| 滚动条标记 | 蓝色圆点标记用户消息在滚动条上的位置 |
+| XSS 防护 | 所有 URL 经过安全过滤（javascript:/data:/vbscript:） |
 
 ### 终端模式（WebSocket 流式）
 
-点击会话页面的浮动按钮切换到终端模式：
+点击页面右侧浮动 **CLI** 按钮切换到终端模式：
 
 | 功能 | 说明 |
 |------|------|
 | 实时流式输出 | Claude CLI 的完整输出逐行推送到网页 |
-| 思考过程 | 折叠显示 Claude 的 thinking 内容 |
-| 工具调用 | 显示工具名称和输入参数（Read、Bash、Edit 等） |
-| 工具结果 | 折叠显示工具执行结果 |
-| 费用统计 | 底部显示本次对话的 API 花费 |
+| 思考过程 | 紫色折叠块显示 Claude 的 thinking 内容 |
+| 工具调用 | 蓝色卡片显示工具名称和输入参数（Read、Bash、Edit 等） |
+| 工具结果 | 绿色折叠块显示工具执行结果 |
+| 费用统计 | 底部状态栏显示本次对话的 API 花费和连接状态 |
 | 自动滚动 | 新内容自动滚动到底部 |
 
 ### 桌面管理面板（电脑本地）
 
-双击 `CCM.pyw` 或 `启动.bat` 打开：
+双击 `CCM.pyw` 或 `启动.bat` 打开 Liquid Glass UI 管理面板：
 
 | 功能 | 说明 |
 |------|------|
-| 服务器启停 | 一键启动/停止 FastAPI 后端服务 |
+| 服务器启停 | 一键启动/停止 FastAPI 后端服务，绿色/灰色状态指示 |
 | 连接信息 | 显示本地 URL 和局域网 URL，一键复制 |
 | API 密钥 | 显示/修改密钥，自动保存并同步到运行中的服务器 |
-| 系统状态 | CPU 使用率、内存使用率、CC 进程数，进度条实时更新 |
-| 日志查看 | 读取所有日志文件，每 3 秒自动刷新 |
+| 系统状态 | CPU 使用率、内存使用率、CC 进程数，彩色进度条实时更新 |
+| 日志查看 | 读取所有日志文件，每 3 秒自动刷新，等宽字体深色背景 |
 
 ---
 
@@ -140,16 +186,17 @@ python server.py
 
 ### 对话模式操作
 
-1. 左侧选择项目 → 选择会话
-2. 消息列表显示所有历史消息
+1. 左侧选择项目 → 选择会话（星标为最大会话）
+2. 消息列表显示所有历史消息，按轮次折叠
 3. 底部输入框输入消息，点发送或按 Enter
-4. 新消息通过 SSE 实时推送显示
-5. 点击代码块右上角复制按钮复制代码
-6. 点击 thinking 块展开/折叠思考过程
+4. 新消息通过 SSE 实时推送显示，打字机效果
+5. 点击 thinking 块展开/折叠思考过程
+6. 点击代码块右上角复制按钮复制代码
+7. 右侧滚动条蓝色圆点标记用户消息位置
 
 ### 终端模式操作
 
-1. 进入会话后，点击输入框上方的圆形 **CLI** 按钮
+1. 进入会话后，点击页面右侧圆形 **CLI** 按钮
 2. 切换到终端模式，按钮变为 **会话**
 3. 输入消息发送，Claude 的完整输出实时流式显示
 4. 包括：思考过程（紫色）、工具调用（蓝色）、执行结果（绿色）、回复文字
@@ -162,8 +209,8 @@ python server.py
 |------|------|
 | 启动 | 启动 FastAPI 服务器（subprocess 方式，无窗口） |
 | 停止 | 终止服务器进程 + 按端口杀残留进程 |
-| 复制 | 复制本地/局域网 URL |
-| 打开面板 | 在浏览器中打开 Web 面板 |
+| 📋 | 复制本地/局域网 URL |
+| 🔗 | 在浏览器中打开 Web 面板 |
 | 密钥输入框 | 修改 API 密钥，自动保存到 `.api_key` 文件 |
 
 ---
@@ -304,7 +351,7 @@ claude-code-mobile/
 
 详见 [CHANGELOG.md](CHANGELOG.md)
 
-当前版本：**v2.0.0**
+当前版本：**v2.2.0**
 
 ---
 
@@ -319,6 +366,20 @@ MIT
 ### What is this
 
 claude-code-mobile is a local web service that lets you monitor and manage your Claude Code sessions from any device's browser. It reads Claude Code's session data from `~/.claude/` and serves a web interface for remote access.
+
+### Screenshots
+
+**Desktop — Dashboard**
+
+![Desktop Dashboard](image/TEST_PLAN/tokenplan/电脑首页.png)
+
+**Desktop — Server Panel**
+
+![Server Panel](image/TEST_PLAN/tokenplan/电脑服务器后台面板.png)
+
+**Mobile — Conversation**
+
+![Mobile Conversation](image/TEST_PLAN/tokenplan/手机对话页面.jpg)
 
 ### Quick Start
 
