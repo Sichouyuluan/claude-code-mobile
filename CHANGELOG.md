@@ -1,5 +1,35 @@
 # Changelog
 
+## v2.3.0 (2026-05-25)
+
+### 新增功能
+- **CLI 终端模式**：WebSocket 实时流式传输 Claude CLI 完整输出，页面右侧浮动按钮一键切换对话/终端模式
+- **自动模型匹配**：发消息时从 JSONL 自动检测会话模型，通过 --model 参数传递，解决跨模型切换报错
+- **README 界面截图**：新增 7 张界面预览图（电脑端 4 张 + 手机端 3 张），附详细功能说明
+
+### 修复
+- WebSocket 认证：`get_api_key` 导入错误 → 改用 `app_state.api_key`
+- 流式子进程泄漏：增加 `finally` 块确保 `proc.kill()`
+- SSE 重连退避：移除无条件重置，仅在 `onopen` 时重置
+- 终端模式双重发送：增加 `termStreaming` 防抖
+- 打字机效果泄漏：增加 `sseTypewriterStopped` 标记
+- API key 启动覆盖：`os.environ.get()` 默认值改为空字符串
+- 中文换行：`white-space: pre-wrap` → `word-break: break-word`
+- CLI 按钮位置：从输入栏移到 `#app` 外 `position:fixed` 垂直居中
+- 面板按钮截断：字号加大 + padding 加宽
+- 滚动条加宽：6px → 10px
+- 顶部按钮换行：改为纯图标 `←` `↻`
+- 过滤空对话：`size_kb > 0` 过滤无消息会话
+- 工具结果复制：`copyCodeBlock` 支持 `.tool-result-block`
+- 移动端工具栏遮挡：`100dvh` + `visualViewport.height` JS 兜底
+- renderMessages 优化：for 循环替代 forEach
+
+### 安全
+- WebSocket 认证改用 `hmac.compare_digest` 防止时序攻击
+- 添加 MIT LICENSE 文件
+
+---
+
 ## v2.0.0 (2026-05-24)
 
 ### 新增功能
