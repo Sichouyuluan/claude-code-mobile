@@ -36,4 +36,4 @@ node_modules/
 Thumbs.db
 Desktop.ini
 .DS_Store
-image/
+image/TEST_PLAN/tokenplan/*.docx
